@@ -64,3 +64,15 @@ verify_api_config.py
 
 # Static Assets (if generated)
 backend/static/
+
+# Internal reports / plans / logs (not for repo)
+003.md
+AGENTS.md
+CLAUDE.md
+DEBUG_INSTRUCTIONS.md
+FIXES_APPLIED.md
+MVP1-ACCEPTANCE.md
+STARTUP_TROUBLESHOOTING.md
+gamma_script.md
+market.md
+docs/TODO.md
