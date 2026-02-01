@@ -18,6 +18,7 @@ const initialState = {
     // 新增: 编辑器状态
     cursorPosition: { line: 1, column: 1 },
     wordCount: 0,
+    selectionCount: 0,
     lastSavedAt: null,
     unsavedChanges: false,
 
@@ -62,6 +63,9 @@ function ideReducer(state, action) {
 
         case 'SET_WORD_COUNT':
             return { ...state, wordCount: action.payload };
+
+        case 'SET_SELECTION_COUNT':
+            return { ...state, selectionCount: action.payload };
 
         case 'SET_SAVED':
             return { ...state, lastSavedAt: new Date(), unsavedChanges: false };

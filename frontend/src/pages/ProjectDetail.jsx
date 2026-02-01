@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import useSWR, { mutate } from 'swr';
+import useSWR from 'swr';
 import { useNavigate, useParams } from 'react-router-dom';
 import { projectsAPI, cardsAPI } from '../api';
-import { DashboardView } from '../components/project/DashboardView';
 import { CharacterView } from '../components/project/CharacterView';
 import { DraftsView } from '../components/project/DraftsView';
 
@@ -12,7 +11,6 @@ import { WorldView } from '../components/project/WorldView';
 import { StyleView } from '../components/project/StyleView';
 import { Button } from '../components/ui/Button';
 import {
-  LayoutDashboard,
   Users,
   BookOpen,
   PenTool,
@@ -28,7 +26,7 @@ const fetcher = (fn) => fn().then(res => res.data);
 function ProjectDetail() {
   const { projectId } = useParams();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState('fanfiction');
 
   const { data: project } = useSWR(
     projectId ? `project-${projectId}` : null,
@@ -37,7 +35,6 @@ function ProjectDetail() {
   );
 
   const tabLabels = {
-    dashboard: '仪表盘',
     writing: '写作会话',
     fanfiction: '同人创作',
     characters: '角色',
@@ -46,30 +43,12 @@ function ProjectDetail() {
     drafts: '档案库'
   };
 
-  // Data States
-  const [dashboardLoading, setDashboardLoading] = useState(false);
-  const [dashboardError, setDashboardError] = useState('');
-  const [dashboard, setDashboard] = useState(null);
-
   const [characters, setCharacters] = useState([]);
   const [editingCharacter, setEditingCharacter] = useState(null);
 
   useEffect(() => {
-    if (activeTab === 'dashboard') loadDashboard();
     if (activeTab === 'characters') loadCharacters();
   }, [projectId, activeTab]);
-
-  const loadDashboard = async () => {
-    setDashboardLoading(true);
-    try {
-      const response = await projectsAPI.getDashboard(projectId);
-      setDashboard(response.data);
-    } catch (error) {
-      setDashboardError(error.message);
-    } finally {
-      setDashboardLoading(false);
-    }
-  };
 
   const loadCharacters = async () => {
     try {
@@ -101,7 +80,6 @@ function ProjectDetail() {
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
-      {/* Sidebar Navigation */}
       <motion.div
         initial={{ x: -20, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
@@ -131,12 +109,6 @@ function ProjectDetail() {
         </div>
 
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-          <NavButton
-            active={activeTab === 'dashboard'}
-            onClick={() => setActiveTab('dashboard')}
-            icon={<LayoutDashboard size={18} />}
-            label={tabLabels.dashboard}
-          />
           <NavButton
             active={activeTab === 'writing'}
             onClick={() => navigate(`/project/${projectId}/session`)}
@@ -177,7 +149,6 @@ function ProjectDetail() {
         </nav>
       </motion.div>
 
-      {/* Main Content Area */}
       <div className="flex-1 overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div
@@ -188,15 +159,6 @@ function ProjectDetail() {
             transition={{ duration: 0.3 }}
             className="h-full"
           >
-            {activeTab === 'dashboard' && (
-              <DashboardView
-                dashboard={dashboard}
-                loading={dashboardLoading}
-                error={dashboardError}
-                onRefresh={loadDashboard}
-              />
-            )}
-
             {activeTab === 'fanfiction' && (
               <FanfictionView />
             )}
@@ -224,7 +186,6 @@ function ProjectDetail() {
   );
 }
 
-// Optimized Nav Button with animations
 function NavButton({ active, onClick, icon, label, highlight }) {
   return (
     <motion.button

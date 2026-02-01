@@ -172,7 +172,7 @@ const VolumeTree = ({ projectId, onChapterSelect, selectedChapter }) => {
                               ? 'bg-primary/10 border-primary text-primary'
                               : 'border-transparent hover:bg-ink-100 text-ink-700'
                           )}
-                          onClick={() => onChapterSelect?.(chapter.chapter)}
+                          onClick={() => onChapterSelect?.(chapter)}
                         >
                           <span className="font-mono text-[10px]">{chapter.chapter}</span>
                           <span className="truncate flex-1">

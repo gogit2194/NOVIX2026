@@ -24,28 +24,14 @@ class EditorAgent(BaseAgent):
 
     def get_system_prompt(self) -> str:
         """Get system prompt / 鑾峰彇绯荤粺鎻愮ず璇?"""
-        return """You are an Editor agent for novel writing.
-
-Your responsibilities:
-1. Follow user feedback precisely
-2. Polish the prose while maintaining the author's voice
-3. Ensure smooth pacing and flow
-4. Preserve all good elements from the original draft
-
-Priorities:
-- Follow user instructions strictly
-- Avoid introducing new inconsistencies
-- Keep style consistent with the project
-
-Output: Revised draft with clear, engaging prose
-
-浣犳槸涓€涓皬璇寸紪杈戙€?
-鑱岃矗锛?
-1. 绮鹃噺绮剧‘鎵ц鐢ㄦ埛鍙嶉
-2. 娑﹁壊鏂囧瓧锛屽悓鏃朵繚鎸佷綔鑰呯殑澹伴煶
-3. 纭繚娴佺晠鐨勮妭濂忓拰娴佸姩鎬?
-4. 淇濈暀鍘熺涓墍鏈変紭绉€鐨勫厓绱?
-"""
+        return (
+            "你是编辑（Editor）。\n"
+            "职责：\n"
+            "1) 严格按用户反馈修改，只改涉及的部分；\n"
+            "2) 维持作者原有文风与语气，润色流畅度；\n"
+            "3) 不引入新设定与矛盾。\n"
+            "输出：仅输出修改后的正文，确保改动可见且满足反馈。"
+        )
 
     async def execute(
         self,
@@ -136,35 +122,19 @@ Output: Revised draft with clear, engaging prose
                 "You MUST remove or rewrite any rejected concepts."
             )
 
-        user_prompt = f"""You are an obedient editor. YOU MUST FOLLOW THE USER'S INSTRUCTIONS.
+        user_prompt = f"""你是编辑，必须100%执行用户修改意见，只改涉及部分且改动可见。
+规则：
+- 不得拒绝或敷衍，必须体现修改。
+- 未被提及的内容保持不变；禁止新增设定或剧情。
+- 如反馈是风格类请求，需在全文体现相应变化。
 
-=== ABSOLUTE RULE ===
-YOU MUST MAKE THE CHANGES THE USER REQUESTED. 
-NEVER say "no changes needed" or refuse to make changes.
-If the user says "make it more plain", YOU MUST simplify the language.
-If the user says "make it more dramatic", YOU MUST add dramatic elements.
-THE USER IS ALWAYS RIGHT. FOLLOW THEIR INSTRUCTIONS.
-
-=== SCOPE OF CHANGES ===
-1. Apply the user's requested style/changes to the ENTIRE draft
-2. For style changes like "more plain", rewrite sentences to be simpler throughout
-3. For targeted changes like "change paragraph 2", only change that specific part
-4. Keep the story/plot the same, only change the expression/style as requested
-
-=== ORIGINAL DRAFT ===
+原稿：
 {original_draft}
 
-=== USER REQUEST ===
+用户反馈：
 {user_feedback}
 
-=== OUTPUT ===
-Output the REVISED draft with the user's requested changes applied.
-You MUST make visible changes to fulfill the user's request.
-Do NOT output the original unchanged. That is a failure.
-
-杈撳嚭搴旂敤浜嗙敤鎴蜂慨鏀硅姹傜殑淇绋裤€?
-浣犲繀椤诲仛鍑哄彲瑙佺殑淇敼鏉ユ弧瓒崇敤鎴疯姹傘€?
-缁濆涓嶈兘鍘熸牱杈撳嚭锛岄偅鏄け璐ョ殑缁撴灉銆?"""
+输出：仅输出修改后的正文。"""
 
         messages = self.build_messages(
             system_prompt=self.get_system_prompt(),

@@ -83,7 +83,8 @@ class BaseAgent(ABC):
     async def call_llm(
         self,
         messages: List[Dict[str, str]],
-        temperature: Optional[float] = None
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None
     ) -> str:
         """
         Call LLM with agent-specific configuration
@@ -105,7 +106,8 @@ class BaseAgent(ABC):
         response = await self.gateway.chat(
             messages=messages,
             provider=provider,
-            temperature=temperature
+            temperature=temperature,
+            max_tokens=max_tokens
         )
         
         # === TRACE: Record LLM Request & Update Stats ===

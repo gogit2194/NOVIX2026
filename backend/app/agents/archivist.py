@@ -489,6 +489,7 @@ class ArchivistAgent(BaseAgent):
                 card_type="World",
                 existing=existing,
                 sentences=sentences,
+                min_count=2,
             )
         )
         proposals.extend(
@@ -497,6 +498,7 @@ class ArchivistAgent(BaseAgent):
                 card_type="Character",
                 existing=existing,
                 sentences=sentences,
+                min_count=1,
             )
         )
 
@@ -515,10 +517,24 @@ class ArchivistAgent(BaseAgent):
         return counts
 
     def _extract_character_candidates(self, text: str) -> Dict[str, int]:
-        pattern = re.compile(r"([\\u4e00-\\u9fff]{2,3})(?:\\s*)(?:说道|问道|答道|笑道|喝道|低声道|沉声道|道)")
         counts: Dict[str, int] = {}
-        for match in pattern.findall(text):
+        if not text:
+            return counts
+
+        say_pattern = re.compile(r"([\\u4e00-\\u9fff]{2,3})(?:\\s*)(?:说道|问道|答道|笑道|喝道|低声道|沉声道|道)")
+        action_verbs = "走|看|望|想|叹|笑|皱|点头|摇头|转身|停下|沉默|开口|伸手|拔剑|抬眼"
+        action_pattern = re.compile(rf"([\\u4e00-\\u9fff]{{2,3}})(?:\\s*)(?:{action_verbs})")
+
+        for match in say_pattern.findall(text):
+            if match in self.STOPWORDS:
+                continue
+            counts[match] = counts.get(match, 0) + 2
+
+        for match in action_pattern.findall(text):
+            if match in self.STOPWORDS:
+                continue
             counts[match] = counts.get(match, 0) + 1
+
         return counts
 
     def _build_card_proposals(
@@ -527,12 +543,13 @@ class ArchivistAgent(BaseAgent):
         card_type: str,
         existing: set,
         sentences: List[str],
+        min_count: int = 2,
     ) -> List[CardProposal]:
         proposals: List[CardProposal] = []
         for name, count in candidates.items():
             if not name or name in existing:
                 continue
-            if count < 2:
+            if count < min_count:
                 continue
             source_sentence = ""
             for sent in sentences:
@@ -560,15 +577,13 @@ class ArchivistAgent(BaseAgent):
         if provider == "mock":
             return ""
 
-        user_prompt = f"""Analyze the sample text and produce a compact writing style guide.
+        user_prompt = f"""请从示例文本中提炼“文风指导”。
+要求（先读完再输出）：
+- 用中文，结构化分条总结：视角/叙述人称、基调与情绪、节奏、用词/句式、意象与细节偏好。
+- 只给可操作的写作要点，不要复述原文剧情，不要出现人物姓名/专名。
+- 精炼但具体，每条一句。
 
-Requirements:
-- Summarize narrative perspective, tone, pacing, diction, rhythm, and imagery.
-- Output in Chinese, concise but actionable.
-- No bullet point numbers required, but keep it structured.
-- Do not repeat the sample text.
-
-Sample Text:
+示例文本：
 {sample_text[:15000]}
 """
         messages = self.build_messages(
@@ -590,25 +605,21 @@ Sample Text:
                 "description": "",
             }
 
-        user_prompt = f"""You are summarizing a wiki page into a setting card for novel writing.
+        user_prompt = f"""你在把百科/词条页面转换为“设定卡”。
+只输出 JSON 对象，字段：name, type, description。type 取 Character 或 World。
 
-Requirements:
-- Output JSON object only. Do NOT include any other text.
-- Fields: name, type, description.
-- type must be one of: Character, World.
-- description must be Chinese, 60-200 characters.
-- Avoid empty/templated sentences. Use concrete info from the page.
-- If character: include identity + appearance + personality or role (at least 3 facets).
-- If world/setting: include nature + location/organization + rules/impact (at least 3 facets).
-- Ignore gameplay/skill tables, quotes, and unrelated lists.
-- Do NOT include labels like "Title:", "Summary:", "Table".
-- Prefer the page title as the name unless the content clearly states a better name.
-- If content is mostly plot summary, extract role/identity cues and avoid retelling the plot.
+描述写法（至关重要，先读完再写）：
+- 中文，多句（3-6句），结构化地概括身份/外貌（如有）/性格/角色功能等核心特征，像人物小传。
+- 不要剧情复述；聚焦设定画像，覆盖全方位特征。
+- 不得抄袭原文，改写且避免任意12字连续重合；句子不可重复。
+- 忽略玩法/技能/版本/宣传等无关信息；忽略表格标题等噪声。
+- 默认用页面标题为 name，除非正文有更合适的正式名称。
+- 禁用任何“Title:”“Summary:”“Table”等标签字样。
 
 Page Title: {clean_title}
 
 Page Content:
-{clean_content[:18000]}
+{clean_content[:24000]}
 """
 
         provider_id = self.gateway.get_provider_for_agent(self.get_agent_name())
@@ -626,54 +637,98 @@ Page Content:
             context_items=None,
         )
 
-        response = await self.call_llm(messages)
-        logger.info("Fanfiction extraction response_chars=%s", len(response or ""))
-        parsed = self._parse_json_object(response)
-        if not self._is_valid_fanfiction_payload(parsed):
-            logger.info("Fanfiction extraction JSON parse failed, running repair")
-            parsed = await self._repair_fanfiction_json(clean_title, response)
-        name = str(parsed.get("name") or clean_title or "Unknown").strip()
-        card_type = str(parsed.get("type") or "").strip() or self._infer_card_type_from_title(name)
-        description = self._truncate_description(str(parsed.get("description") or "").strip())
-        description = self._sanitize_fanfiction_description(description)
+        max_attempts = 5
+        last_description = ""
+        last_length = 0
+        for attempt in range(1, max_attempts + 1):
+            response = await self.call_llm(messages, max_tokens=1400)
+            logger.info("Fanfiction extraction response_chars=%s", len(response or ""))
+            parsed = self._parse_json_object(response)
+            if not self._is_valid_fanfiction_payload(parsed, clean_content):
+                logger.info("Fanfiction extraction JSON parse failed, retrying with strict prompt")
+                parsed = await self._extract_fanfiction_json_from_content(
+                    clean_title,
+                    clean_content,
+                    hint="请严格输出JSON，描述需覆盖身份/外貌（如有）/性格/角色功能，多句完整描述，避免重复与抄袭。",
+                )
 
-        if not description or len(description) < 60:
-            description = self._fallback_fanfiction_description(clean_content)
+            if not self._is_valid_fanfiction_payload(parsed, clean_content):
+                continue
 
-        if card_type not in {"Character", "World"}:
-            card_type = self._infer_card_type_from_title(name)
+            name = str(parsed.get("name") or clean_title or "Unknown").strip()
+            card_type = str(parsed.get("type") or "").strip() or self._infer_card_type_from_title(name)
+            description = self._sanitize_fanfiction_description(str(parsed.get("description") or "").strip())
+            last_description = description
+            last_length = len(description)
 
-        return {
-            "name": name,
-            "type": card_type,
-            "description": description,
-        }
+            if not description or self._is_copied_from_source(description, clean_content):
+                parsed = await self._extract_fanfiction_json_from_content(
+                    name,
+                    clean_content,
+                    hint="描述需涵盖身份、外貌（如有）、性格、角色功能等要点，多句完整描述，避免重复，确保具体。",
+                )
+                if self._is_valid_fanfiction_payload(parsed, clean_content):
+                    description = self._sanitize_fanfiction_description(str(parsed.get("description") or "").strip())
+                    last_description = description
+                    last_length = len(description)
+                if not description or self._is_copied_from_source(description, clean_content):
+                    continue
 
-    async def _repair_fanfiction_json(self, title: str, raw: str) -> Dict[str, Any]:
-        if not raw:
+            if card_type not in {"Character", "World"}:
+                card_type = self._infer_card_type_from_title(name)
+
+            return {
+                "name": name,
+                "type": card_type,
+                "description": description,
+            }
+
+        # 兜底：尝试从原文提取基础摘要
+        fallback_desc = self._build_fanfiction_fallback(clean_title, clean_content)
+        fallback_desc = self._sanitize_fanfiction_description(fallback_desc)
+        if fallback_desc:
+            return {
+                "name": clean_title or "Unknown",
+                "type": self._infer_card_type_from_title(clean_title),
+                "description": fallback_desc,
+            }
+        raise ValueError(f"Fanfiction extraction failed: empty description (len={last_length})")
+
+    async def _extract_fanfiction_json_from_content(
+        self,
+        title: str,
+        content: str,
+        hint: str = "",
+    ) -> Dict[str, Any]:
+        if not content:
             return {}
-        repair_prompt = f"""Convert the following content into a strict JSON object with fields: name, type, description.
+        extra_hint = f"\nAdditional Hint:\n{hint}\n" if hint else ""
+        repair_prompt = f"""Convert the following wiki content into a strict JSON object with fields: name, type, description.
 
 Rules:
 - Output JSON only. No extra text.
 - type must be Character or World.
-- description must be Chinese, 60-200 characters.
-- Do NOT include labels like "Title:", "Summary:", "Table".
-
+- description 必须是中文，多句完整描述（建议3-6句），覆盖身份/外貌/性格/角色功能等信息，句子不重复，务必具体。
+- Do NOT include labels like "Title:", "Summary:", "Table", "RawText".
+- Do NOT reuse any sequence of 12+ consecutive characters from the page.
+- 使用多句完整描述，覆盖身份、外貌（如有）、性格、角色功能等要点。
+{extra_hint}
 Page Title: {title}
 
-Content:
-{raw[:2000]}
+Page Content:
+{content[:24000]}
 """
         messages = self.build_messages(
             system_prompt=self.get_system_prompt(),
             user_prompt=repair_prompt,
             context_items=None,
         )
-        response = await self.call_llm(messages)
+        response = await self.call_llm(messages, max_tokens=1200)
         return self._parse_json_object(response)
 
-    def _is_valid_fanfiction_payload(self, payload: Dict[str, Any]) -> bool:
+    
+
+    def _is_valid_fanfiction_payload(self, payload: Dict[str, Any], source: str = "") -> bool:
         if not isinstance(payload, dict):
             return False
         name = str(payload.get("name") or "").strip()
@@ -683,7 +738,27 @@ Content:
             return False
         if card_type not in {"Character", "World"}:
             return False
+        if source and self._is_copied_from_source(description, source):
+            return False
         return True
+
+    def _is_copied_from_source(self, description: str, source: str = "") -> bool:
+        if not description or not source:
+            return False
+        text = description.strip()
+        if len(text) < 20:
+            return False
+        if text in source:
+            return True
+        window = 12
+        hits = 0
+        for i in range(0, len(text) - window + 1, 4):
+            frag = text[i : i + window]
+            if frag and frag in source:
+                hits += 1
+                if hits >= 2:
+                    return True
+        return False
 
     def _parse_json_object(self, text: str) -> Dict[str, Any]:
         if not text:
@@ -708,7 +783,7 @@ Content:
                 return {}
         return {}
 
-    def _truncate_description(self, text: str, limit: int = 200) -> str:
+    def _truncate_description(self, text: str, limit: int = 800) -> str:
         if not text:
             return ""
         clean = re.sub(r"\s+", " ", text).strip()
@@ -718,26 +793,72 @@ Content:
 
     def _fallback_fanfiction_description(self, content: str) -> str:
         summary = ""
-        summary_match = re.search(r"Summary:\\s*(.+?)(?:\\n\\n|$)", content, re.IGNORECASE | re.DOTALL)
+        summary_match = re.search(r"Summary:\s*(.+?)(?:\n\n|$)", content, re.IGNORECASE | re.DOTALL)
         if summary_match:
             summary = summary_match.group(1).strip()
         summary = self._sanitize_fanfiction_description(summary)
         if summary:
-            return self._truncate_description(summary, limit=200)
+            return self._truncate_description(summary, limit=800)
         clean = re.sub(r"\s+", " ", content).strip()
         clean = self._sanitize_fanfiction_description(clean)
-        return self._truncate_description(clean, limit=200)
+        return self._truncate_description(clean, limit=800)
 
     def _sanitize_fanfiction_description(self, text: str) -> str:
         if not text:
             return ""
         cleaned = text
-        cleaned = re.sub(r"\\bTitle:\\s*", "", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"\\bSummary:\\s*", "", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"\\bTable\\s*\\d*:\\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\bTitle:\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\bSummary:\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\bTable\s*\d*:\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\bRawText:\s*", "", cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r"\s*\|\s*", " ", cleaned)
         cleaned = re.sub(r"\s+", " ", cleaned).strip()
-        return cleaned
+        # 去重相邻句子，减少重复
+        sentences = re.split(r"(?<=[。！？!?.])", cleaned)
+        deduped = []
+        seen = set()
+        for s in sentences:
+            s = s.strip()
+            if not s:
+                continue
+            key = s[:20]
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(s)
+        result = "".join(deduped)
+        return result
+
+
+    def _extract_llm_section(self, content: str, label: str) -> str:
+        if not content or not label:
+            return ""
+        pattern = re.compile(rf"{re.escape(label)}:\s*(.+?)(?:\n\n[A-Z][A-Za-z ]+:\s*|\Z)", re.DOTALL)
+        match = pattern.search(content)
+        return match.group(1).strip() if match else ""
+
+    def _build_fanfiction_fallback(self, title: str, content: str) -> str:
+        summary = self._extract_llm_section(content, "Summary")
+        summary = self._sanitize_fanfiction_description(summary)
+        if summary and len(summary) >= 60:
+            return self._truncate_description(summary, limit=800)
+
+        infobox = self._extract_llm_section(content, "Infobox")
+        infobox = self._sanitize_fanfiction_description(infobox)
+        info_lines = []
+        if infobox:
+            for line in infobox.split("\n"):
+                line = line.strip("- ").strip()
+                if not line:
+                    continue
+                key_lower = line.split(":")[0].lower() if ":" in line else line.lower()
+                if any(k in key_lower for k in ["姓名", "本名", "别名", "身份", "职业", "性别", "所属", "阵营", "种族", "配音"]):
+                    info_lines.append(line)
+        if info_lines:
+            combined = f"{title}，" + "，".join(info_lines)
+            return self._truncate_description(self._sanitize_fanfiction_description(combined), limit=800)
+
+        return self._fallback_fanfiction_description(content)
 
     def _infer_card_type_from_title(self, title: str) -> str:
         text = title or ""
@@ -820,36 +941,35 @@ Content:
 
     async def _generate_canon_updates_yaml(self, chapter: str, final_draft: str) -> str:
         """Generate canon updates YAML via LLM."""
-        user_prompt = f"""Extract canon updates from the final draft.
+        user_prompt = f"""从最终稿中提取可落库的“事实/时间线/角色状态”更新，输出 YAML。
+章节：{chapter}
 
-Chapter: {chapter}
-
-Output YAML only, matching this schema:
+模板：
 ```yaml
 facts:
-  - statement: <fact statement>
+  - statement: <客观事实，精炼句子>
     confidence: <0.0-1.0>
 timeline_events:
-  - time: <time description>
-    event: <event description>
-    participants: [<name1>, <name2>]
-    location: <location>
+  - time: <时间描述>
+    event: <发生了什么>
+    participants: [<角色1>, <角色2>]
+    location: <地点>
 character_states:
-  - character: <character name>
-    goals: [<goal1>]
-    injuries: [<injury1>]
-    inventory: [<item1>]
-    relationships: {{ <other>: <relation> }}
-    location: <current location>
-    emotional_state: <emotion>
+  - character: <角色名>
+    goals: [<目标1>]
+    injuries: [<伤势1>]
+    inventory: [<物品1>]
+    relationships: {{ <他人>: <关系描述> }}
+    location: <当前位置>
+    emotional_state: <情绪>
 ```
 
-Rules:
-- Include only updates that can be inferred from the draft.
-- Prefer 3-5 facts when the draft contains enough information.
-- If an item is unknown, use empty string / empty list.
+规则：
+- 只写能从正文推断的客观信息；不捏造。
+- facts 以3-5条为宜，聚焦关键设定/剧情。
+- 不确定的字段留空或空列表。
 
-Final Draft:
+正文：
 """ + final_draft
 
         messages = self.build_messages(
@@ -958,32 +1078,32 @@ Final Draft:
         final_draft: str,
     ) -> str:
         """Generate ChapterSummary YAML via LLM."""
-        user_prompt = f"""Generate a structured chapter summary in YAML.
+        user_prompt = f"""请用 YAML 结构化生成本章“事实摘要”。
+章节：{chapter}
+标题：{chapter_title}
 
-Chapter: {chapter}
-Title: {chapter_title}
-
-The YAML must match this schema exactly:
+严格匹配下列键名：
 ```yaml
 chapter: {chapter}
 title: {chapter_title}
-word_count: <int>
-key_events:
+word_count: <int>              # 估算字数即可
+key_events:                    # 3-5条，客观剧情节点
   - <event1>
-new_facts:
+new_facts:                     # 3-5条，关键设定/情节事实，避免琐碎小人物小事
   - <fact1>
-character_state_changes:
+character_state_changes:       # 主要人物的心理/关系/目标变化
   - <change1>
-open_loops:
+open_loops:                    # 未解决的悬念/伏笔
   - <loop1>
-brief_summary: <one paragraph summary>
+brief_summary: <一段话摘要，聚焦剧情与重要人物心理>
 ```
 
-Constraints:
-- Write concise but informative items.
-- Output YAML only, no extra text.
+规则：
+- 只记录客观剧情与主要人物心理，不写无关路人或枝节。
+- 用中文，精炼但具体；避免抄全文。
+- 仅输出 YAML，无额外文本。
 
-Final Draft:
+正文：
 """ + final_draft
 
         messages = self.build_messages(
@@ -1149,5 +1269,15 @@ Constraints:
             open_loops=[],
             brief_summary=brief,
         )
+
+
+
+
+
+
+
+
+
+
 
 

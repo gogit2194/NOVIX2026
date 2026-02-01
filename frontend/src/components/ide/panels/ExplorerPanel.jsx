@@ -19,8 +19,17 @@ export default function ExplorerPanel() {
   const [reviewItems, setReviewItems] = useState([]);
   const [reviewSaving, setReviewSaving] = useState(false);
 
-  const handleChapterClick = (chapterId) => {
-    dispatch({ type: 'SET_ACTIVE_DOCUMENT', payload: { type: 'chapter', id: chapterId } });
+  const handleChapterClick = (chapter) => {
+    const chapterId = typeof chapter === 'string' ? chapter : chapter.chapter;
+    const chapterTitle = typeof chapter === 'string' ? '' : (chapter.title || '');
+    dispatch({
+      type: 'SET_ACTIVE_DOCUMENT',
+      payload: {
+        type: 'chapter',
+        id: chapterId,
+        data: { title: chapterTitle }
+      }
+    });
   };
 
   const handleSyncConfirm = async (chapterIds) => {

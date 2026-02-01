@@ -42,6 +42,19 @@ const fetchChapterContent = async ([_, projectId, chapter]) => {
     return '';
 };
 
+const countChars = (text) => (text || '').replace(/\s/g, '').length;
+
+const getSelectionStats = (text, start, end) => {
+    const safeText = text || '';
+    const safeStart = Math.max(0, Math.min(start || 0, safeText.length));
+    const safeEnd = Math.max(0, Math.min(end || 0, safeText.length));
+    const selection = safeText.slice(Math.min(safeStart, safeEnd), Math.max(safeStart, safeEnd));
+    return {
+        selectionCount: countChars(selection),
+        cursorText: safeText.slice(0, safeStart)
+    };
+};
+
 function WritingSessionContent({ isEmbedded = false }) {
     const { projectId } = useParams();
     const navigate = useNavigate();
@@ -195,7 +208,8 @@ function WritingSessionContent({ isEmbedded = false }) {
                         total: finalText.length
                     });
                     setIsGenerating(false);
-                    dispatch({ type: 'SET_WORD_COUNT', payload: finalText.length });
+                    dispatch({ type: 'SET_WORD_COUNT', payload: countChars(finalText) });
+                    dispatch({ type: 'SET_SELECTION_COUNT', payload: 0 });
                     if (data.draft) {
                         setCurrentDraft(data.draft);
                         setCurrentDraftVersion(data.draft.version || currentDraftVersion);
@@ -300,7 +314,8 @@ function WritingSessionContent({ isEmbedded = false }) {
         }
 
         setManualContent(loadedContent);
-        dispatch({ type: 'SET_WORD_COUNT', payload: loadedContent.length });
+        dispatch({ type: 'SET_WORD_COUNT', payload: countChars(loadedContent) });
+        dispatch({ type: 'SET_SELECTION_COUNT', payload: 0 });
         lastGeneratedRef.current = false;
         // Only center cursor if we just switched chapters (optional optimization)
         // dispatch({ type: 'SET_CURSOR_POSITION', payload: { line: 1, column: 1 } });
@@ -310,6 +325,28 @@ function WritingSessionContent({ isEmbedded = false }) {
     useEffect(() => {
         loadChapters();
     }, [projectId]);
+
+    useEffect(() => {
+        let active = true;
+        const loadTitle = async () => {
+            if (!projectId || !chapterInfo.chapter) return;
+            if (chapterInfo.chapter_title && chapterInfo.chapter_title.trim()) return;
+            try {
+                const summaryResp = await draftsAPI.getSummary(projectId, chapterInfo.chapter);
+                const summary = summaryResp.data || {};
+                const title = summary.title || summary.chapter_title || '';
+                if (active && title) {
+                    setChapterInfo((prev) => ({ ...prev, chapter_title: title }));
+                }
+            } catch (e) {
+                // ignore missing summary
+            }
+        };
+        loadTitle();
+        return () => {
+            active = false;
+        };
+    }, [projectId, chapterInfo.chapter, chapterInfo.chapter_title]);
 
     // 监听 Context 中的 Dialog 状态
     useEffect(() => {
@@ -328,11 +365,11 @@ function WritingSessionContent({ isEmbedded = false }) {
         }
     };
 
-    const handleChapterSelect = async (chapter) => {
+    const handleChapterSelect = async (chapter, presetTitle = '') => {
         // Just set the chapter, let SWR handle fetching
         stopStreaming();
         clearDiffReview();
-        setChapterInfo({ chapter, chapter_title: '', content: '' }); // content will be filled by SWR
+        setChapterInfo({ chapter, chapter_title: presetTitle || '', content: '' }); // content will be filled by SWR
         setStatus('editing');
         try {
             const summaryResp = await draftsAPI.getSummary(projectId, chapter);
@@ -342,7 +379,7 @@ function WritingSessionContent({ isEmbedded = false }) {
             setChapterInfo((prev) => ({
                 ...prev,
                 chapter: normalizedChapter,
-                chapter_title: title
+                chapter_title: title || prev.chapter_title || ''
             }));
             if (normalizedChapter !== chapter) {
                 dispatch({ type: 'SET_ACTIVE_DOCUMENT', payload: { type: 'chapter', id: normalizedChapter } });
@@ -463,7 +500,8 @@ function WritingSessionContent({ isEmbedded = false }) {
             if (index >= total) {
                 streamingRef.current = null;
                 setIsGenerating(false);
-                dispatch({ type: 'SET_WORD_COUNT', payload: total });
+                dispatch({ type: 'SET_WORD_COUNT', payload: countChars(safeText) });
+                dispatch({ type: 'SET_SELECTION_COUNT', payload: 0 });
                 onComplete?.();
                 return;
             }
@@ -493,7 +531,8 @@ function WritingSessionContent({ isEmbedded = false }) {
             stopStreaming();
             clearDiffReview();
             setActiveCard(null); // Clear card state
-            handleChapterSelect(state.activeDocument.id);
+            const presetTitle = state.activeDocument.data?.title || '';
+            handleChapterSelect(state.activeDocument.id, presetTitle);
         } else if (['character', 'world'].includes(state.activeDocument.type)) {
             // Switch to Card Mode
             stopStreaming();
@@ -794,7 +833,8 @@ function WritingSessionContent({ isEmbedded = false }) {
         if (!diffReview) return;
         const nextContent = diffReview.revisedContent || '';
         setManualContent(nextContent);
-        dispatch({ type: 'SET_WORD_COUNT', payload: nextContent.length });
+        dispatch({ type: 'SET_WORD_COUNT', payload: countChars(nextContent) });
+        dispatch({ type: 'SET_SELECTION_COUNT', payload: 0 });
         clearDiffReview();
     };
 
@@ -802,7 +842,8 @@ function WritingSessionContent({ isEmbedded = false }) {
         if (!diffReview) return;
         const nextContent = diffReview.originalContent || '';
         setManualContent(nextContent);
-        dispatch({ type: 'SET_WORD_COUNT', payload: nextContent.length });
+        dispatch({ type: 'SET_WORD_COUNT', payload: countChars(nextContent) });
+        dispatch({ type: 'SET_SELECTION_COUNT', payload: 0 });
         clearDiffReview();
     };
 
@@ -966,7 +1007,7 @@ function WritingSessionContent({ isEmbedded = false }) {
                                     setChapterInfo((prev) => ({ ...prev, chapter_title: e.target.value }));
                                     dispatch({ type: 'SET_UNSAVED' });
                                 }}
-                                placeholder="?????"
+                                placeholder="请输入章节标题"
                                 disabled={!chapterInfo.chapter}
                             />
                         </div>
@@ -1052,7 +1093,7 @@ function WritingSessionContent({ isEmbedded = false }) {
                                     setChapterInfo((prev) => ({ ...prev, chapter_title: e.target.value }));
                                     dispatch({ type: 'SET_UNSAVED' });
                                 }}
-                                placeholder="?????"
+                                placeholder="请输入章节标题"
                                 disabled={!chapterInfo.chapter}
                             />
                         </div>
@@ -1088,13 +1129,25 @@ function WritingSessionContent({ isEmbedded = false }) {
                                 className="flex-1 w-full resize-none border-none outline-none bg-transparent text-base font-serif text-ink-900 leading-relaxed focus:ring-0 placeholder:text-ink-300"
                                 value={manualContent}
                                 onChange={(e) => {
-                                    setManualContent(e.target.value);
-                                    dispatch({ type: 'SET_WORD_COUNT', payload: e.target.value.length });
+                                    const nextValue = e.target.value;
+                                    setManualContent(nextValue);
+                                    dispatch({ type: 'SET_WORD_COUNT', payload: countChars(nextValue) });
+                                    const stats = getSelectionStats(nextValue, e.target.selectionStart, e.target.selectionEnd);
+                                    dispatch({ type: 'SET_SELECTION_COUNT', payload: stats.selectionCount });
+                                    const lines = stats.cursorText.split('\n');
+                                    dispatch({
+                                        type: 'SET_CURSOR_POSITION',
+                                        payload: {
+                                            line: lines.length,
+                                            column: lines[lines.length - 1].length + 1
+                                        }
+                                    });
                                     dispatch({ type: 'SET_UNSAVED' });
                                 }}
                                 onSelect={(e) => {
-                                    const text = e.target.value.substring(0, e.target.selectionStart);
-                                    const lines = text.split('\n');
+                                    const stats = getSelectionStats(e.target.value, e.target.selectionStart, e.target.selectionEnd);
+                                    dispatch({ type: 'SET_SELECTION_COUNT', payload: stats.selectionCount });
+                                    const lines = stats.cursorText.split('\n');
                                     dispatch({
                                         type: 'SET_CURSOR_POSITION',
                                         payload: {
@@ -1214,12 +1267,6 @@ function WritingSessionContent({ isEmbedded = false }) {
                 saving={analysisSaving}
             />
 
-            {isGenerating && (
-                <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-full shadow-lg animate-pulse">
-                    <Loader2 size={16} className="animate-spin" />
-                    <span className="text-sm font-medium">正在生成...</span>
-                </div>
-            )}
         </IDELayout >
     );
 }

@@ -26,8 +26,8 @@ class CrawlerService:
     """Service for scraping Wiki pages"""
 
     MAX_PREVIEW_CHARS = 1200
-    MAX_LLM_CHARS = 20000
-    MAX_LINKS = 300
+    MAX_LLM_CHARS = 50000
+    MAX_LINKS = 400
 
     def __init__(self):
         self.headers = {
@@ -238,10 +238,19 @@ class CrawlerService:
             }
 
         llm_content = wiki_parser.format_for_llm(parsed_data, max_chars=self.MAX_LLM_CHARS)
-        if len(llm_content) < 800:
-            raw_text = self._extract_text_from_soup(soup)
-            if raw_text:
-                llm_content = f"{llm_content}\n\nRawText:\n{raw_text[:2000]}"
+        # 追加更多正文段落，尽可能还原页面信息
+        extra_paragraphs = []
+        for p in soup.find_all("p")[:80]:
+            text = p.get_text(" ", strip=True)
+            if len(text) >= 20:
+                extra_paragraphs.append(text)
+        if extra_paragraphs:
+            llm_content = f"{llm_content}\n\n" + "\n".join(extra_paragraphs)
+
+        # 再追加纯文本兜底，确保长内容传递给 LLM
+        fallback_text = self._extract_text_from_soup(soup)
+        if fallback_text:
+            llm_content = f"{llm_content}\n\n{fallback_text[:20000]}"
         preview_content = wiki_parser.format_for_preview(parsed_data, max_chars=self.MAX_PREVIEW_CHARS)
         if not preview_content:
             preview_content = llm_content[: self.MAX_PREVIEW_CHARS]

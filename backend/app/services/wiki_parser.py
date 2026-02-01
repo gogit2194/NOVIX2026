@@ -181,36 +181,29 @@ class WikiStructuredParser:
 
         return ""
 
-    def format_for_llm(self, parsed: Dict, max_chars: int = 20000) -> str:
+    def format_for_llm(self, parsed: Dict, max_chars: int = 50000) -> str:
         """Format parsed data into a compact LLM-ready text."""
         parts: List[str] = []
         title = str(parsed.get("title", "") or "").strip()
         summary = str(parsed.get("summary", "") or "").strip()
         infobox = parsed.get("infobox") or {}
         sections = parsed.get("sections") or {}
-        tables = parsed.get("tables") or []
 
         if title:
-            parts.append(f"Title: {title}")
+            parts.append(f"{title}")
         if summary:
-            parts.append("Summary:\n" + summary)
+            parts.append(summary)
 
         if infobox:
-            lines = [f"- {k}: {v}" for k, v in infobox.items() if k and v]
+            lines = [f"{k}: {v}" for k, v in infobox.items() if k and v]
             if lines:
-                parts.append("Infobox:\n" + "\n".join(lines))
-
-        for idx, rows in enumerate(tables, start=1):
-            if not rows:
-                continue
-            table_block = "\n".join(rows)
-            parts.append(f"Table {idx}:\n{table_block}")
+                parts.append("\n".join(lines))
 
         if sections:
-            for key, content in sections.items():
+            for _, content in sections.items():
                 if not content:
                     continue
-                parts.append(f"Section {key}:\n{content}")
+                parts.append(content)
 
         text = "\n\n".join([p for p in parts if p]).strip()
         if len(text) > max_chars:

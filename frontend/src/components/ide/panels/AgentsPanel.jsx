@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import useSWR, { mutate } from 'swr';
-import { Bot, Search, Edit3, Terminal, Activity, Cpu, Plus } from 'lucide-react';
+import { Bot, Search, Edit3, Terminal, Plus } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { configAPI } from '../../../api';
 import { cn, Button } from '../../ui/core';
 import LLMProfileModal from '../../../components/LLMProfileModal';
-import AgentTimeline from './AgentTimeline';
-import ContextMonitor from './ContextMonitor';
 import { useTraceEvents } from '../../../hooks/useTraceEvents';
 
 // Fetcher for SWR
@@ -27,10 +25,9 @@ const AgentsPanel = ({ children, mode = 'assistant' }) => {
     // Adjust default tab based on input children or mode
     useEffect(() => {
         if (mode === 'assistant') {
-            if (children) setActiveTab('console');
-            else setActiveTab('timeline');
+            setActiveTab('console');
         }
-    }, [mode, children]);
+    }, [mode]);
 
     // Data Fetching
     const { data: profiles = [], isLoading: loadingProfiles } = useSWR(
@@ -46,7 +43,7 @@ const AgentsPanel = ({ children, mode = 'assistant' }) => {
     );
 
     // Trace Data for assistant mode
-    const { events, traces, contextStats, isConnected } = useTraceEvents();
+    const { isConnected } = useTraceEvents();
 
     const isLoading = loadingProfiles || loadingAssignments;
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -212,7 +209,7 @@ const AgentsPanel = ({ children, mode = 'assistant' }) => {
                 <div className="flex items-center justify-between px-4 py-3">
                     <h2 className="text-sm font-bold flex items-center gap-2 tracking-wide">
                         <Bot size={16} className="text-primary" />
-                        <span className="font-serif">NOVIX INTELLIGENCE</span>
+                        <span className="font-serif">智能助手</span>
                     </h2>
                     <div className="flex items-center gap-3">
                         {/* WebSocket Status */}
@@ -247,18 +244,6 @@ const AgentsPanel = ({ children, mode = 'assistant' }) => {
                             label="控制台"
                         />
                     )}
-                    <TabButton
-                        isActive={activeTab === 'timeline'}
-                        onClick={() => setActiveTab('timeline')}
-                        icon={Activity}
-                        label="追踪"
-                    />
-                    <TabButton
-                        isActive={activeTab === 'monitor'}
-                        onClick={() => setActiveTab('monitor')}
-                        icon={Cpu}
-                        label="监控"
-                    />
                 </div>
             </div>
 
@@ -273,18 +258,6 @@ const AgentsPanel = ({ children, mode = 'assistant' }) => {
                         </TabContent>
                     )}
 
-                    {activeTab === 'timeline' && (
-                        <TabContent key="timeline">
-                            <AgentTimeline events={events} traces={traces} autoScroll={true} maxHeight="100%" />
-                        </TabContent>
-                    )}
-
-                    {activeTab === 'monitor' && (
-                        <TabContent key="monitor">
-                            {/* PASSED TRACES HERE! This was missing */}
-                            <ContextMonitor stats={contextStats} traces={traces} />
-                        </TabContent>
-                    )}
                 </AnimatePresence>
             </div>
         </div>

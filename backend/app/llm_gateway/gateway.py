@@ -224,12 +224,24 @@ class LLMGateway:
         start_time = time.time()
         response = await provider.chat(messages, temperature=temperature, max_tokens=max_tokens)
         elapsed_time = time.time() - start_time
-        
+
         self.total_requests += 1
         self.total_tokens += response.get("usage", {}).get("total_tokens", 0)
-        
+
         response["provider"] = provider.get_provider_name()
         response["elapsed_time"] = elapsed_time
+        try:
+            usage = response.get("usage", {})
+            logger.info(
+                "LLM chat completed provider=%s model=%s elapsed_ms=%s prompt_tokens=%s completion_tokens=%s",
+                response.get("provider"),
+                response.get("model"),
+                int(elapsed_time * 1000),
+                usage.get("prompt_tokens"),
+                usage.get("completion_tokens"),
+            )
+        except Exception:
+            pass
         return response
     
     def get_stats(self) -> Dict[str, Any]:

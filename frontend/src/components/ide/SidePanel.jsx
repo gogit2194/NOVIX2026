@@ -1,11 +1,9 @@
-import React from 'react';
+﻿import React from 'react';
 import { useIDE } from '../../context/IDEContext';
 import ExplorerPanel from './panels/ExplorerPanel';
 import CardsPanel from './panels/CardsPanel';
-import SearchPanel from './panels/SearchPanel';
 import AgentsPanel from './panels/AgentsPanel';
 import FanfictionPanel from './panels/FanfictionPanel';
-import DashboardWidget from './widgets/DashboardWidget';
 import FactsEncyclopedia from './FactsEncyclopedia';
 
 export const SidePanel = () => {
@@ -13,12 +11,10 @@ export const SidePanel = () => {
   const { sidePanelVisible, activeActivity, sidePanelWidth } = state;
 
   const titleMap = {
-    dashboard: '仪表盘',
     explorer: '资源管理器',
     facts: '事实全典',
     cards: '设定卡片',
     fanfiction: '同人导入',
-    search: '搜索',
     agents: '智能体',
   };
 
@@ -35,18 +31,12 @@ export const SidePanel = () => {
 
       <div className="flex-1 overflow-hidden h-full flex flex-col">
         <div className="flex-1 overflow-hidden min-h-0 relative">
-          {activeActivity === 'dashboard' && (
-            <div className="p-2">
-              <DashboardWidget />
-            </div>
-          )}
           {activeActivity === 'explorer' && <ExplorerPanel />}
           {activeActivity === 'facts' && (
             <div className="h-full overflow-hidden">
               <FactsEncyclopedia />
             </div>
           )}
-          {activeActivity === 'search' && <SearchPanel />}
           {activeActivity === 'cards' && <CardsPanel />}
           {activeActivity === 'agents' && <AgentsPanel mode="config" />}
           {activeActivity === 'fanfiction' && <FanfictionPanel />}

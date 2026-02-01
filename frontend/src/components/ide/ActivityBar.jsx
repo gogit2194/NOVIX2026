@@ -1,12 +1,10 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useIDE } from '../../context/IDEContext';
 import {
   Files,
   BookOpen,
-  Search,
   Bot,
-  BarChart2,
   Library,
   Info,
   X,
@@ -19,12 +17,10 @@ export function ActivityBar() {
   const [showLicense, setShowLicense] = useState(false);
 
   const icons = [
-    { id: 'dashboard', icon: BarChart2, label: '仪表盘' },
     { id: 'explorer', icon: Files, label: '资源管理器' },
     { id: 'facts', icon: Lightbulb, label: '事实全典' },
     { id: 'cards', icon: BookOpen, label: '设定卡片' },
     { id: 'fanfiction', icon: Library, label: '同人导入' },
-    { id: 'search', icon: Search, label: '搜索' },
     { id: 'agents', icon: Bot, label: '智能体' },
   ];
 
@@ -146,8 +142,7 @@ Copyright (c) 2026 丁逸飞 (Ding Yifei) <1467673018@qq.com>
 
 All Rights Reserved.
 STRICTLY NO COMMERCIAL USE WITHOUT WRITTEN PERMISSION.
-禁止一切未经书面授权的商业使用。
-Commercial Licensing Contact / 商业授权联系:
+禁止一切未经书面授权的商业使用。Commercial Licensing Contact / 商业授权联系:
 Email: 1467673018@qq.com
 GitHub: https://github.com/unitagain`}
                   </pre>

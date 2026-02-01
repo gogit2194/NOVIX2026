@@ -13,9 +13,9 @@ class WriterAgent(BaseAgent):
     """Agent responsible for generating drafts."""
 
     DEFAULT_QUESTIONS = [
-        {"type": "plot_point", "text": "本章是否有必须发生的关键事件或转折？"},
-        {"type": "character_change", "text": "主要角色在本章需要呈现怎样的情感变化或关系推进？"},
-        {"type": "style_focus", "text": "本章应重点强化怎样的氛围或叙事节奏？"},
+        {"type": "plot_point", "text": "为达成本章目标，尚缺的剧情/世界信息是什么？"},
+        {"type": "character_change", "text": "哪些主角的动机或情绪需再确认，避免违背既有事实？"},
+        {"type": "detail_gap", "text": "还有哪些具体细节（地点/时间/物件）需要确定后再写？"},
     ]
 
     def get_agent_name(self) -> str:
@@ -23,20 +23,15 @@ class WriterAgent(BaseAgent):
 
     def get_system_prompt(self) -> str:
         return (
-            "You are a Writer agent for novel writing.\n\n"
-            "Your responsibilities:\n"
-            "1. Write draft based on scene brief\n"
-            "2. Follow style guidelines strictly\n"
-            "3. DO NOT invent new settings - mark anything uncertain as [TO_CONFIRM]\n"
-            "4. Respect character boundaries and timeline constraints\n\n"
-            "Core principle:\n"
-            "- Chapter goal comes first. Use cards/canon as constraints and a reference, not a checklist.\n"
-            "- Do NOT try to mention or use every card in every chapter. Only apply what is relevant.\n"
-            "- Before writing, form a brief internal plan (3-6 beats) to reach the chapter goal.\n\n"
-            "Output Format:\n"
-            "- FIRST, Provide your internal plan inside <plan> tags.\n"
-            "- SECOND, Write the narrative prose inside <draft> tags.\n"
-            "- Mark uncertain details with [TO_CONFIRM: detail] inside the text.\n"
+            "You are the Writer (主笔)。\n"
+            "【最高优先】严禁违背用户指令、章节目标、事实摘要和禁忌。\n"
+            "职责：\n"
+            "1. 基于场景简报撰写正文，严格遵守文风卡与事实约束。\n"
+            "2. 不新增设定，若信息不足必须用[TO_CONFIRM:细节]标记。\n"
+            "3. 维护角色边界与时间线一致性。\n"
+            "原则：章节目标优先，只选取相关卡片/事实；先生成3-6个写作节拍计划，再成文。\n"
+            "输出：先输出<plan>节拍，再输出<draft>正文；保持中文叙事，避免重复啰嗦。\n"
+            "【再次提醒】宁缺毋滥，不得凭空捏造或违背事实与指令。\n"
         )
 
     async def execute(self, project_id: str, chapter: str, context: Dict[str, Any]) -> Dict[str, Any]:
@@ -135,22 +130,31 @@ class WriterAgent(BaseAgent):
         ]
 
         if context_package:
-            context_items.append("Context Package Summary:")
-            for key in ["summary_with_events", "summary_only", "title_only", "volume_summaries"]:
+            context_items.append("事实摘要（节选，供反问参考）：")
+            for key in ["summary_with_events", "summary_only", "full_facts"]:
                 items = context_package.get(key, []) or []
-                if items:
-                    context_items.append(f"- {key}: {len(items)} items")
+                for item in items[:2]:
+                    summary = str(item.get("summary") or "").strip()
+                    events = item.get("key_events") or []
+                    chapter_id = item.get("chapter") or ""
+                    title = item.get("title") or ""
+                    if summary or events:
+                        block = [f"- {chapter_id} {title}".strip()]
+                        if summary:
+                            block.append(f"摘要：{summary}")
+                        if events:
+                            block.append("事件：" + "；".join([str(e) for e in events[:4]]))
+                        context_items.append("\n".join(block))
 
         system_prompt = (
-            "You are a Writer preparing to draft a novel chapter. "
-            "Ask the user 3 concise questions to clarify writing intent before drafting."
+            "你是主笔，写作前必须针对用户指令与事实摘要提出关键反问，"
+            "目的是补齐缺失信息、避免违背既有事实与章节目标。"
         )
 
         user_prompt = (
-            "Return ONLY a JSON array with exactly 3 items. "
-            "Each item must have {\"type\": \"...\", \"text\": \"...\"}. "
-            "Types must be: plot_point, character_change, style_focus. "
-            "Text must be Chinese, short, and directly answerable."
+            "仅返回JSON数组（恰好3条），每条包含 type 与 text。"
+            "type 只能是 plot_point / character_change / detail_gap。"
+            "围绕章节目标与事实摘要，提出最缺的关键信息，必须具体、可回答、不可空泛。"
         )
 
         messages = self.build_messages(
@@ -442,43 +446,28 @@ FORBIDDEN:
             context_items.append("Previous Chapters:\n" + "\n\n".join(previous_summaries))
 
         if include_plan:
-            user_prompt = f"""Write a draft for this chapter.
+            user_prompt = f"""【必须遵守】严禁违背用户指令、事实摘要、禁忌；信息缺口用[TO_CONFIRM:细节]标记。
+章节目标（最高优先）：{chapter_goal or brief_goal}
+目标字数：约 {target_word_count} 字；严格遵守文风提醒与风格卡。
 
-Chapter goal (top priority): {chapter_goal or brief_goal}
-
-Requirements:
-- Target word count: approximately {target_word_count} words
-- Follow the style reminder strictly
-- Respect all constraints and forbidden actions
-- DO NOT invent new settings without marking them [TO_CONFIRM: detail]
-
-Output format:
+输出格式（先计划后成文）：
 <plan>
-(Your 3-6 beats plan here, in Markdown list format)
+- 列出3-6个节拍，覆盖冲突、转折、情绪推进，确保达成章节目标
 </plan>
 <draft>
-(Your narrative prose here)
+叙事正文（中文），不要包含计划或任何额外说明
 </draft>
 """
             system_prompt = self.get_system_prompt()
         else:
-            user_prompt = f"""Write the narrative draft for this chapter.
+            user_prompt = f"""【必须遵守】严禁违背用户指令、事实摘要、禁忌；信息缺口用[TO_CONFIRM:细节]标记。
+章节目标（最高优先）：{chapter_goal or brief_goal}
+目标字数：约 {target_word_count} 字；严格遵守文风提醒与风格卡。
 
-Chapter goal (top priority): {chapter_goal or brief_goal}
-
-Requirements:
-- Target word count: approximately {target_word_count} words
-- Follow the style reminder strictly
-- Respect all constraints and forbidden actions
-- DO NOT invent new settings without marking them [TO_CONFIRM: detail]
-
-Output format:
-- Output ONLY the narrative prose.
-- Do NOT include <plan> tags or any extra headers.
+输出格式：仅输出叙事正文（中文），不得包含计划或额外标题。
 """
             system_prompt = (
-                "You are a Writer agent for novel writing.\n"
-                "Write the narrative draft only. Do not output any plan tags or headers."
+                "你是主笔，仅输出正文草稿；必须遵守事实摘要与禁忌，禁止新增设定。"
             )
 
         return self.build_messages(

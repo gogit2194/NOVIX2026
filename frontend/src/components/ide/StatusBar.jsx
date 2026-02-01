@@ -1,20 +1,16 @@
-import React from 'react';
+﻿import React from 'react';
 import { useIDE } from '../../context/IDEContext';
-import {
-    GitBranch, Folder, PenTool, Save, AlertCircle,
-    FileText, Radio, Bell, Bot
-} from 'lucide-react';
-import { cn } from '../ui/core';
+import { Folder, Save, AlertCircle, FileText, Bell } from 'lucide-react';
 
 export function StatusBar() {
     const { state } = useIDE();
     const {
         activeProjectId,
         wordCount,
+        selectionCount,
         cursorPosition,
         lastSavedAt,
         unsavedChanges,
-        connectionStatus,
         zenMode
     } = state;
 
@@ -26,37 +22,11 @@ export function StatusBar() {
         });
     };
 
-    const getConnectionColor = () => {
-        switch (connectionStatus) {
-            case 'connected': return 'bg-green-500';
-            case 'syncing': return 'bg-yellow-500 animate-pulse';
-            case 'disconnected': return 'bg-red-500';
-            default: return 'bg-gray-400';
-        }
-    };
-
-    const getConnectionText = () => {
-        switch (connectionStatus) {
-            case 'connected': return '已连接';
-            case 'syncing': return '同步中...';
-            case 'disconnected': return '已断开';
-            default: return '未知';
-        }
-    };
-
-    if (zenMode) return null; // 禅模式下隐藏状态栏
+    if (zenMode) return null;
 
     return (
         <div className="h-6 min-h-[24px] bg-primary text-white flex items-center justify-between px-2 text-[11px] select-none flex-shrink-0 z-50">
-            {/* 左侧信息 */}
             <div className="flex items-center gap-1">
-                {/* 版本控制 */}
-                <button className="flex items-center gap-1.5 px-2 h-full hover:bg-white/10 rounded transition-colors">
-                    <GitBranch size={12} />
-                    <span>main</span>
-                </button>
-
-                {/* 项目名称 */}
                 {activeProjectId && (
                     <button className="flex items-center gap-1.5 px-2 h-full hover:bg-white/10 rounded transition-colors">
                         <Folder size={12} />
@@ -64,13 +34,6 @@ export function StatusBar() {
                     </button>
                 )}
 
-                {/* 编辑状态 */}
-                <button className="flex items-center gap-1.5 px-2 h-full hover:bg-white/10 rounded transition-colors">
-                    <PenTool size={12} />
-                    <span>编辑中</span>
-                </button>
-
-                {/* 保存状态 */}
                 <button className="flex items-center gap-1.5 px-2 h-full hover:bg-white/10 rounded transition-colors">
                     {unsavedChanges ? (
                         <>
@@ -91,32 +54,19 @@ export function StatusBar() {
                 </button>
             </div>
 
-            {/* 右侧状态 */}
             <div className="flex items-center gap-1">
-                {/* 字数统计 */}
                 <button className="flex items-center gap-1.5 px-2 h-full hover:bg-white/10 rounded transition-colors">
                     <FileText size={12} />
                     <span>{wordCount.toLocaleString()} 字</span>
+                    {selectionCount > 0 && (
+                        <span className="opacity-80">（选中 {selectionCount.toLocaleString()} 字）</span>
+                    )}
                 </button>
 
-                {/* 光标位置 */}
                 <button className="flex items-center gap-1.5 px-2 h-full hover:bg-white/10 rounded transition-colors font-mono">
                     <span>Ln {cursorPosition.line}, Col {cursorPosition.column}</span>
                 </button>
 
-                {/* AI 状态 */}
-                <button className="flex items-center gap-1.5 px-2 h-full hover:bg-white/10 rounded transition-colors">
-                    <Bot size={12} />
-                    <span>AI</span>
-                </button>
-
-                {/* 连接状态 */}
-                <button className="flex items-center gap-1.5 px-2 h-full hover:bg-white/10 rounded transition-colors">
-                    <div className={cn("w-2 h-2 rounded-full", getConnectionColor())} />
-                    <span>{getConnectionText()}</span>
-                </button>
-
-                {/* 通知 */}
                 <button className="flex items-center gap-1.5 px-2 h-full hover:bg-white/10 rounded transition-colors">
                     <Bell size={12} />
                 </button>
