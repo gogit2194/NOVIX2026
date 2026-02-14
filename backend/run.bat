@@ -1,6 +1,9 @@
 @echo off
 REM WenShape Backend Startup Script for Windows
 
+REM Ensure working directory is this script's directory (robust for "backend\\run.bat" called from repo root)
+cd /d %~dp0
+
 set PYTHONUTF8=1
 set PYTHONIOENCODING=utf-8
 
@@ -38,7 +41,21 @@ REM Check if .env exists
 if not exist ".env" (
     echo.
     echo [!] .env file not found. Copying from .env.example...
-    copy .env.example .env >nul
+    if not exist ".env.example" (
+        echo [!] .env.example not found in: %CD%
+        echo [!] Please ensure you are running this script from the backend directory.
+        echo.
+        pause
+        exit /b 1
+    )
+    copy ".env.example" ".env" >nul
+    if errorlevel 1 (
+        echo [!] Failed to create .env in: %CD%
+        echo.
+        pause
+        exit /b 1
+    )
+    echo [!] Created: %CD%\.env
     echo [!] Please edit .env file and add your API keys!
     echo     Or use WENSHAPE_LLM_PROVIDER=mock for demo mode.
     echo.

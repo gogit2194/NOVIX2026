@@ -1,6 +1,9 @@
 @echo off
 REM WenShape Frontend Startup Script for Windows
 
+REM Ensure working directory is this script's directory (robust for "frontend\\run.bat" called from repo root)
+cd /d %~dp0
+
 echo ========================================
 echo   WenShape Frontend
 echo ========================================
