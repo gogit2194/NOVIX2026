@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 文枢 WenShape - 深度上下文感知的智能体小说创作系统
 WenShape - Deep Context-Aware Agent-Based Novel Writing System
@@ -131,7 +131,7 @@ class WriterAgent(BaseAgent):
             evidence_pack=evidence_pack,
         )
 
-        pending_confirmations = self._extract_confirmations(draft_content)
+        pending_confirmations = []
         word_count = len(draft_content)
 
         draft = await self.draft_storage.save_draft(
@@ -227,7 +227,7 @@ class WriterAgent(BaseAgent):
         if err:
             logger.warning("Writer questions parse failed: %s", err)
             logger.debug("Writer questions raw preview: %s", str(raw or "")[:200])
-        if isinstance(data, list) and len(data) == 3:
+        if isinstance(data, list) and 1 <= len(data) <= 5:
             cleaned = []
             for item in data:
                 if not isinstance(item, dict):
@@ -236,7 +236,7 @@ class WriterAgent(BaseAgent):
                 text = item.get("text")
                 if q_type and text:
                     cleaned.append({"type": q_type, "text": text})
-            if len(cleaned) == 3:
+            if cleaned:
                 return cleaned
 
         return list(self.DEFAULT_QUESTIONS)
@@ -656,26 +656,4 @@ FORBIDDEN:
         if not items:
             return "None"
         return "\n".join([f"- {item}" for item in items])
-
-    def _extract_confirmations(self, content: str) -> List[str]:
-        """
-        从生成内容中提取待确认项 - 查找 [TO_CONFIRM:...] 标记
-
-        Extract [TO_CONFIRM:...] markers from draft content for user review.
-        These mark uncertain facts that require user confirmation.
-
-        Args:
-            content: Generated draft text.
-
-        Returns:
-            List of confirmation texts (content between [TO_CONFIRM: and ]).
-        """
-        confirmations = []
-        for line in content.split("\n"):
-            if "[TO_CONFIRM:" in line:
-                start = line.find("[TO_CONFIRM:") + 12
-                end = line.find("]", start)
-                if end > start:
-                    confirmations.append(line[start:end].strip())
-        return confirmations
 

@@ -262,9 +262,6 @@ class ContextMixin:
             except Exception as exc:
                 logger.warning("Working memory build failed: %s", exc)
 
-        if working_memory_payload and not working_memory_payload.get("research_stop_reason"):
-            working_memory_payload["questions"] = []
-
         return working_memory_payload
 
     async def _load_memory_pack(self, project_id: str, chapter: str) -> Optional[Dict[str, Any]]:
