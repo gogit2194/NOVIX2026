@@ -3,6 +3,8 @@ WenShape FastAPI Application Entry Point
 FastAPI 应用入口
 """
 
+import sys
+import re
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -65,15 +67,48 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Configure CORS / 配置跨域
 # Production-ready CORS configuration
+# For Frozen (EXE) mode: Allow all localhost addresses with any port
+# This is safe because the app only binds to 127.0.0.1 (loopback)
+
+def is_localhost(origin: str) -> bool:
+    """Check if origin is a localhost address (safe for desktop apps)"""
+    try:
+        return bool(re.match(r"^https?://(localhost|127\.0\.0\.1)(:\d+)?(/|$)", origin))
+    except Exception:
+        return False
+
+class LoopbackOriginsMatcher:
+    """CORS middleware that accepts any localhost origin for desktop apps"""
+    def __init__(self):
+        self.allow_origins = [
+            "http://localhost:3000",   # Dev: Vite dev server
+            "http://localhost:8000",   # Prod: Standard port
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:8000",
+        ]
+        # For dynamic ports in Frozen mode, we'll handle in __call__
+        self.is_frozen = getattr(sys, 'frozen', False)
+
+    def __call__(self, origin: str) -> bool:
+        # Hardcoded origins (for non-dynamic setup)
+        if origin in self.allow_origins:
+            return True
+        # Dynamic port support: Allow any localhost address
+        if self.is_frozen and is_localhost(origin):
+            return True
+        return False
+
+loopback_matcher = LoopbackOriginsMatcher()
+
 app.add_middleware(
     CORSMiddleware,
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?(/|$)" if getattr(sys, 'frozen', False) else None,
     allow_origins=[
         "http://localhost:3000",  # Dev: Vite dev server
-        "http://localhost:8000",  # Prod: Packaged app
+        "http://localhost:8000",  # Prod: Packaged app (default port)
         "http://127.0.0.1:3000",
         "http://127.0.0.1:8000",
-        # Add your production domain here when deploying:
-        # "https://yourdomain.com",
+        # Frozen mode supports any localhost port via regex above
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -129,21 +164,67 @@ async def on_startup():
     import sys
     import webbrowser
     import asyncio
-    
-    # Auto-open browser in a separate thread to not block startup
-    # But webbrowser.open is usually fire-and-forget
+    import subprocess
+
+    # Auto-open browser in a separate task (non-blocking)
+    # Crucial: Any exception here must not crash the server
     if getattr(sys, 'frozen', False):
         # Packaged mode: open a loopback URL (0.0.0.0 is only a bind address)
         url = f"http://127.0.0.1:{settings.port}"
         logger.info(f"Auto-opening browser at {url}")
-        # Small delay to ensure server is ready
-        async def open_browser():
-            await asyncio.sleep(1.5)
-            webbrowser.open(url)
-        asyncio.create_task(open_browser())
+
+        async def open_browser_safely():
+            """Try to open browser with fallback strategies for frozen mode"""
+            await asyncio.sleep(1.5)  # Wait for server to be fully ready
+
+            try:
+                # Strategy 1: Standard webbrowser module (most reliable)
+                webbrowser.open(url)
+                logger.debug("Browser opened successfully via webbrowser module")
+                return
+            except Exception as e:
+                logger.debug(f"Standard webbrowser.open failed: {e}")
+
+            # Strategy 2: Platform-specific fallback for frozen mode
+            try:
+                import platform
+                system = platform.system()
+
+                if system == "Windows":
+                    # Windows: Use cmd /c start
+                    subprocess.Popen(f'start {url}', shell=True)
+                    logger.debug("Browser opened via Windows start command")
+                    return
+                elif system == "Darwin":
+                    # macOS: Use open command
+                    subprocess.Popen(['open', url])
+                    logger.debug("Browser opened via macOS open command")
+                    return
+                else:
+                    # Linux/Others: Try xdg-open
+                    subprocess.Popen(['xdg-open', url])
+                    logger.debug("Browser opened via xdg-open")
+                    return
+            except Exception as e:
+                logger.warning(f"Platform-specific browser launch failed: {e}")
+
+            # Strategy 3: Graceful degradation
+            # If all browser opening attempts fail, just log it and continue
+            # User can manually open the browser and navigate to the URL
+            logger.warning(
+                f"Could not auto-open browser. Please manually visit: {url}\n"
+                f"浏览器无法自动打开，请手动访问：{url}"
+            )
+
+        # Create task but don't await - let it run in background
+        # If it raises, we catch and log it, server continues running
+        try:
+            asyncio.create_task(open_browser_safely())
+        except Exception as e:
+            logger.error(f"Failed to create browser-opening task: {e}", exc_info=True)
+            # Still don't crash - just continue running the server
 
 # --- Static Files / SPA Support (Added for Packaging) ---
-import sys
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
