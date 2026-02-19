@@ -30,7 +30,6 @@ import logger from '../utils/logger';
 import {
     fetchChapterContent,
     countChars,
-    extractToConfirmKeys,
     escapeRegExp,
     getSelectionStats,
     normalizeStars,
@@ -122,9 +121,6 @@ function WritingSessionContent({ isEmbedded = false }) {
     const [preWriteQuestions, setPreWriteQuestions] = useState([]);
     const [pendingStartPayload, setPendingStartPayload] = useState(null);
 
-    const [showToConfirmDialog, setShowToConfirmDialog] = useState(false);
-    const [toConfirmQuestions, setToConfirmQuestions] = useState([]);
-
     const manualContentByChapterRef = useRef(manualContentByChapter);
     useEffect(() => {
         manualContentByChapterRef.current = manualContentByChapter;
@@ -198,7 +194,6 @@ function WritingSessionContent({ isEmbedded = false }) {
         Boolean(aiLockedChapter) &&
         (Boolean(diffReview) ||
             showPreWriteDialog ||
-            showToConfirmDialog ||
             status === 'starting' ||
             status === 'waiting_user_input' ||
             isGenerating ||
@@ -348,23 +343,6 @@ function WritingSessionContent({ isEmbedded = false }) {
                     }
                     setStatus('waiting_feedback');
                     addMessage('assistant', '草稿已生成，可继续反馈或手动编辑。', wsChapterKey);
-
-                    const keys = extractToConfirmKeys(finalText);
-                    if (keys.length > 0) {
-                        setToConfirmQuestions(
-                            keys.map((key) => ({
-                                type: 'to_confirm',
-                                key,
-                                text: `请确认：${key}`,
-                                reason: '正文中存在 [TO_CONFIRM] 标记；确认后将直接替换到正文对应位置。',
-                            }))
-                        );
-                        if (activeChapterKeyRef.current === wsChapterKey) {
-                            setShowToConfirmDialog(true);
-                        } else {
-                            pushNotice(`第 ${wsChapterKey} 章有待确认信息，请切换回该章节处理。`);
-                        }
-                    }
                 }
                 if (data.type === 'scene_brief') handleSceneBrief(data.data, wsChapterKey);
                 if (data.type === 'draft_v1') handleDraftV1(data.data, wsChapterKey);
@@ -1137,24 +1115,6 @@ function WritingSessionContent({ isEmbedded = false }) {
         }
         startStreamingDraft(data.content || '', {
             chapterKey,
-            onComplete: () => {
-                const keys = extractToConfirmKeys(data?.content || '');
-                if (keys.length > 0) {
-                    setToConfirmQuestions(
-                        keys.map((key) => ({
-                            type: 'to_confirm',
-                            key,
-                            text: `请确认：${key}`,
-                            reason: '正文中存在 [TO_CONFIRM] 标记；确认后将直接替换到正文对应位置。',
-                        }))
-                    );
-                    if (activeChapterKeyRef.current === chapterKey) {
-                        setShowToConfirmDialog(true);
-                    } else {
-                        pushNotice(`第 ${chapterKey} 章有待确认信息，请切换回该章节处理。`);
-                    }
-                }
-            }
         });
         setStatus('waiting_feedback');
         addMessage('assistant', '草稿已生成，可继续反馈或手动编辑。', chapterOverride);
@@ -1172,58 +1132,9 @@ function WritingSessionContent({ isEmbedded = false }) {
         }
         startStreamingDraft(data.content || '', {
             chapterKey,
-            onComplete: () => {
-                const keys = extractToConfirmKeys(data?.content || '');
-                if (keys.length > 0) {
-                    setToConfirmQuestions(
-                        keys.map((key) => ({
-                            type: 'to_confirm',
-                            key,
-                            text: `请确认：${key}`,
-                            reason: '正文中存在 [TO_CONFIRM] 标记；确认后将直接替换到正文对应位置。',
-                        }))
-                    );
-                    if (activeChapterKeyRef.current === chapterKey) {
-                        setShowToConfirmDialog(true);
-                    } else {
-                        pushNotice(`第 ${chapterKey} 章有待确认信息，请切换回该章节处理。`);
-                    }
-                }
-            }
         });
         setStatus('completed');
         addMessage('assistant', '终稿已完成。', chapterOverride);
-    };
-
-    const applyToConfirmAnswers = (items) => {
-        const rawItems = Array.isArray(items) ? items : [];
-        const replacements = rawItems
-            .map((item) => ({ key: String(item?.key || '').trim(), answer: String(item?.answer || '').trim() }))
-            .filter((item) => item.key && item.answer);
-        if (replacements.length === 0) {
-            setShowToConfirmDialog(false);
-            return;
-        }
-
-        const baseText = String(manualContent || '');
-        let nextText = baseText;
-        for (const { key, answer } of replacements) {
-            const pattern = new RegExp(`\\[TO_CONFIRM:${escapeRegExp(key)}\\]`, 'g');
-            nextText = nextText.replace(pattern, answer);
-        }
-
-        if (nextText !== baseText) {
-            dispatch({ type: 'SET_UNSAVED' });
-        }
-        setManualContent(nextText);
-        if (chapterInfo.chapter) {
-            const key = String(chapterInfo.chapter);
-            setManualContentByChapter((prev) => ({ ...(prev || {}), [key]: nextText }));
-        }
-        dispatch({ type: 'SET_WORD_COUNT', payload: countChars(nextText) });
-        dispatch({ type: 'SET_SELECTION_COUNT', payload: 0 });
-        setShowToConfirmDialog(false);
-        addMessage('system', '已将确认内容应用到正文（未保存）');
     };
 
     const handleSubmitFeedback = async (feedbackOverride) => {
@@ -1979,17 +1890,6 @@ function WritingSessionContent({ isEmbedded = false }) {
                 questions={preWriteQuestions}
                 onConfirm={handlePreWriteConfirm}
                 onSkip={handlePreWriteSkip}
-            />
-
-            <PreWritingQuestionsDialog
-                open={showToConfirmDialog}
-                questions={toConfirmQuestions}
-                title="待确认信息"
-                subtitle="以下细节在正文中被标记为需要确认。填写后将直接替换到正文对应的 [TO_CONFIRM:...] 位置。"
-                confirmText="应用到正文"
-                skipText="暂不确认"
-                onConfirm={applyToConfirmAnswers}
-                onSkip={() => setShowToConfirmDialog(false)}
             />
 
             <AnalysisReviewDialog

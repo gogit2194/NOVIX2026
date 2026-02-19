@@ -382,18 +382,6 @@ WRITER_SYSTEM_PROMPT = _u_shape(
             "  - 通过动作、环境、对话承载情绪（而非直白解释）",
             "  - 避免同一句意思的重复表达",
             "",
-            "### [TO_CONFIRM] 标记使用规范",
-            "",
-            "适用场景（仅标记关键不确定点）：",
-            "  - 影响剧情一致性的细节",
-            "  - 涉及角色动机的关键信息",
-            "  - 关系到世界规则的设定",
-            "",
-            "使用格式：",
-            "  [TO_CONFIRM:需要确认的具体内容]",
-            "",
-            "技巧：可以写「含混但不矛盾」的表达，只写感受不写原因，再标记缺口",
-            "",
             "### 输出禁忌（常见扣分项）",
             "",
             f"{P0_MARKER} 禁止在正文中出现系统词汇：",
@@ -407,7 +395,6 @@ WRITER_SYSTEM_PROMPT = _u_shape(
             "□ 是否违反任何禁忌/规则？",
             "□ 角色身份/关系/时间线/地点是否与证据一致？",
             "□ 是否存在「看似合理但无证据支撑」的硬细节？",
-            "□ [TO_CONFIRM] 是否覆盖了所有关键不确定点？",
         ]
     ),
 )
@@ -440,7 +427,7 @@ def writer_questions_prompt(context_items: List[str]) -> PromptPair:
             "",
             f"{P0_MARKER} 信息已在证据包中明确给出时，不再重复询问",
             "",
-            _json_only_rules("输出 JSON 数组，恰好 3 项，每项包含 type 和 text 字段"),
+            _json_only_rules("输出 JSON 数组，1-3 项，每项包含 type 和 text 字段"),
         ]
     )
     system = _u_shape(
@@ -471,7 +458,7 @@ def writer_questions_prompt(context_items: List[str]) -> PromptPair:
         [
             "### 输出格式规范",
             "",
-            "输出 JSON 数组，恰好 3 项。每项结构：",
+            "输出 JSON 数组，1-3 项。每项结构：",
             "```json",
             '{"type": "问题类型", "text": "问题文本"}',
             "```",

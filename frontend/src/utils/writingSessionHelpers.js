@@ -31,22 +31,6 @@ export const fetchChapterContent = async ([_, projectId, chapter]) => {
 /** 计算文本字符数（忽略空格） */
 export const countChars = (text) => (text || '').replace(/\s/g, '').length;
 
-/** 提取文本中的 [TO_CONFIRM:xxx] 标记 */
-export const extractToConfirmKeys = (text) => {
-  const keys = [];
-  const content = String(text || '');
-  const regex = /\[TO_CONFIRM:([^\]]+)\]/g;
-  let match = null;
-  while ((match = regex.exec(content)) !== null) {
-    const key = match[1].trim();
-    if (key && !keys.includes(key)) {
-      keys.push(key);
-    }
-    if (keys.length >= 12) break;
-  }
-  return keys;
-};
-
 /** 转义正则表达式特殊字符 */
 export const escapeRegExp = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 

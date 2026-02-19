@@ -200,8 +200,8 @@ class Orchestrator(ContextMixin, AnalysisMixin):
             dynamic_items = context_bundle["dynamic_items"]
             context_debug = self._build_context_debug(context_bundle.get("working_memory_payload"))
 
-            questions = context_bundle.get("questions")
-            if questions is None:
+            questions = context_bundle.get("questions") or None
+            if not questions:
                 questions = await self.writer.generate_questions(
                     context_package=writer_context.get("context_package"),
                     scene_brief=scene_brief,
@@ -1097,11 +1097,7 @@ class Orchestrator(ContextMixin, AnalysisMixin):
         if not final_text:
             raise RuntimeError("Empty draft result")
 
-        pending_confirmations = self._collect_pending_confirmations(
-            final_text=final_text,
-            unresolved_gaps=writer_payload.get("unresolved_gaps") or [],
-            sufficiency_report=(working_memory_payload or {}).get("sufficiency_report") or {},
-        )
+        pending_confirmations = []
         draft = await self.draft_storage.save_draft(
             project_id=project_id,
             chapter=chapter,
@@ -1181,25 +1177,6 @@ class Orchestrator(ContextMixin, AnalysisMixin):
             "chapter": self.current_chapter,
             "iteration": self.iteration_count,
         }
-
-    def _collect_pending_confirmations(
-        self,
-        final_text: str,
-        unresolved_gaps: List[Dict[str, Any]],
-        sufficiency_report: Dict[str, Any],
-    ) -> List[str]:
-        confirmations = self.writer._extract_confirmations(final_text)
-        gap_texts = []
-        for gap in unresolved_gaps or []:
-            if isinstance(gap, dict):
-                text = str(gap.get("text") or "").strip()
-            else:
-                text = str(gap or "").strip()
-            if text:
-                gap_texts.append(text)
-        missing_entities = [str(item).strip() for item in (sufficiency_report.get("missing_entities") or []) if str(item).strip()]
-        merged = list(dict.fromkeys(confirmations + gap_texts + missing_entities))
-        return merged[:12]
 
     async def _emit_progress(self, message: str, **kwargs) -> None:
         if not self.progress_callback:
