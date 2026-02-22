@@ -9,6 +9,7 @@
 import React from 'react';
 import { useIDE } from '../../context/IDEContext';
 import { Folder, Save, AlertCircle, FileText, Bell } from 'lucide-react';
+import { useLocale } from '../../i18n';
 
 /**
  * StatusBar - IDE 底部状态栏
@@ -24,6 +25,7 @@ import { Folder, Save, AlertCircle, FileText, Bell } from 'lucide-react';
  * - 右侧：总字数、选中字数、光标位置（行:列）
  */
 export function StatusBar() {
+    const { t } = useLocale();
     const { state } = useIDE();
     const {
         activeProjectId,
@@ -45,7 +47,7 @@ export function StatusBar() {
      */
     const formatTime = (date) => {
         if (!date) return '--:--';
-        return new Date(date).toLocaleTimeString('zh-CN', {
+        return new Date(date).toLocaleTimeString(undefined, {
             hour: '2-digit',
             minute: '2-digit'
         });
@@ -71,17 +73,17 @@ export function StatusBar() {
                     {unsavedChanges ? (
                         <>
                             <AlertCircle size={12} className="text-amber-600" />
-                            <span className="text-[var(--vscode-fg)]">未保存</span>
+                            <span className="text-[var(--vscode-fg)]">{t('writingSession.unsavedChanges')}</span>
                         </>
                     ) : lastSavedAt ? (
                         <>
                             <Save size={12} className="text-emerald-600" />
-                            <span className="text-[var(--vscode-fg)]">已保存 {formatTime(lastSavedAt)}</span>
+                            <span className="text-[var(--vscode-fg)]">{t('writingSession.saveSuccess')} {formatTime(lastSavedAt)}</span>
                         </>
                     ) : lastAutosavedAt ? (
                         <>
                             <Save size={12} className="text-emerald-600" />
-                            <span className="text-[var(--vscode-fg)]">已自动保存 {formatTime(lastAutosavedAt)}</span>
+                            <span className="text-[var(--vscode-fg)]">{t('writingSession.saveSuccess')} {formatTime(lastAutosavedAt)}</span>
                         </>
                     ) : (
                         <>
@@ -99,9 +101,9 @@ export function StatusBar() {
                 {/* 字数统计 - Word Count */}
                 <button className="flex items-center gap-1.5 px-2 h-full hover:bg-[var(--vscode-list-hover)] rounded-[6px] transition-colors">
                     <FileText size={12} className="text-[var(--vscode-fg-subtle)]" />
-                    <span className="text-[var(--vscode-fg)]">{wordCount.toLocaleString()} 字</span>
+                    <span className="text-[var(--vscode-fg)]">{wordCount.toLocaleString()} {t('chapter.wordCount')}</span>
                     {selectionCount > 0 && (
-                        <span className="text-[var(--vscode-fg-subtle)]">（选中 {selectionCount.toLocaleString()} 字）</span>
+                        <span className="text-[var(--vscode-fg-subtle)]">（{t('writingSession.wordCount').replace('{count}', selectionCount.toLocaleString())}）</span>
                     )}
                 </button>
 

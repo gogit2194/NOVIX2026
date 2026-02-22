@@ -644,6 +644,114 @@ class CrawlerService:
             text = text[: self.MAX_LLM_CHARS].rstrip() + "\n\n[Content truncated]"
         return text
 
+    def _format_generic_llm_content(self, parsed_data: Dict[str, Any], soup: BeautifulSoup) -> str:
+        """
+        Generic LLM content formatting for non-Moegirl sites (Fandom/Wikipedia/etc.).
+        Keep the input compact and structured to reduce noise.
+        """
+        title = str(parsed_data.get("title") or "").strip()
+        summary = str(parsed_data.get("summary") or "").strip()
+        infobox = parsed_data.get("infobox") or {}
+        sections = parsed_data.get("sections") or {}
+        tables = parsed_data.get("tables") or []
+
+        parts: List[str] = []
+        if title:
+            parts.append(title)
+        if summary:
+            parts.append("Summary:\n" + summary[:1600].strip())
+
+        if infobox:
+            def infobox_rank(key: str) -> int:
+                k = str(key or "").strip().lower()
+                if not k:
+                    return 99
+                # Prefer stable identity signals; avoid credits/meta.
+                if any(x in k for x in ["created by", "designed by", "illustrated by", "voiced by", "voice actor", "portrayed by", "played by"]):
+                    return 80
+                if any(x in k for x in ["first appearance", "first game", "publisher", "developer", "composer"]):
+                    return 70
+                if any(x in k for x in ["name", "identity", "real name", "full name", "alias", "aliases", "nickname", "codename"]):
+                    return 1
+                if any(x in k for x in ["occupation", "role", "title", "profession"]):
+                    return 2
+                if any(x in k for x in ["affiliation", "organization", "faction", "team", "species", "race", "gender", "age", "height", "weight"]):
+                    return 3
+                if any(x in k for x in ["status", "alignment", "origin", "nationality"]):
+                    return 4
+                return 20
+
+            lines = []
+            ordered_items = sorted(list(infobox.items()), key=lambda kv: (infobox_rank(kv[0]), str(kv[0] or "")))
+            for k, v in ordered_items[:36]:
+                key = str(k or "").strip()
+                val = str(v or "").strip()
+                if key and val:
+                    lines.append(f"{key}: {val}")
+            if lines:
+                parts.append("Infobox:\n" + "\n".join(lines))
+
+        if sections:
+            ordered = []
+            priority = {"appearance": 1, "personality": 2, "background": 3, "abilities": 4, "relationships": 5}
+            section_to_label = {
+                "appearance": "Appearance",
+                "personality": "Personality",
+                "background": "Identity",
+                "abilities": "Ability",
+                "relationships": "Relations",
+            }
+            for k, v in sections.items():
+                ordered.append((priority.get(k, 99), str(k or "").strip(), str(v or "").strip()))
+            ordered.sort(key=lambda x: x[0])
+            blocks = []
+            for _, name, text in ordered:
+                text = str(text or "").strip()
+                if not text:
+                    continue
+                label = section_to_label.get(name, (name or "Section").strip().capitalize())
+                blocks.append(f"{label}: {text[:1600].strip()}")
+                if len(blocks) >= 5:
+                    break
+            if blocks:
+                parts.append("Key Paragraphs:\n" + "\n\n".join(blocks))
+
+        if tables:
+            table_blocks: List[str] = []
+            for idx, rows in enumerate(tables[:2], start=1):
+                if not rows:
+                    continue
+                compact = []
+                for row in rows[:10]:
+                    row_text = str(row or "").strip()
+                    if row_text:
+                        compact.append(row_text)
+                if compact:
+                    table_blocks.append(f"Table {idx}:\n" + "\n".join(compact))
+            if table_blocks:
+                parts.append("Tables:\n" + "\n\n".join(table_blocks))
+
+        excerpt = []
+        for p in soup.find_all("p")[:60]:
+            text = p.get_text(" ", strip=True)
+            if len(text) >= 40:
+                excerpt.append(text)
+            if len(excerpt) >= 12:
+                break
+        if excerpt:
+            parts.append("Excerpt:\n" + "\n".join(excerpt))
+
+        raw_text = self._extract_text_from_soup(soup)
+        if raw_text:
+            # Avoid Chinese intro marker in generic sources; keep it neutral for English prompts.
+            raw_text = re.sub(r"(?m)^##\s*简介\s*\n", "## Intro\n", raw_text)
+            parts.append("RawText:\n" + raw_text[:12000].strip())
+
+        text = "\n\n".join([p for p in parts if p]).strip()
+        if len(text) > self.MAX_LLM_CHARS:
+            text = text[: self.MAX_LLM_CHARS].rstrip() + "\n\n[Content truncated]"
+        return text
+
     def _extract_mediawiki_title(self, parsed) -> Optional[str]:
         if "index.php" in parsed.path:
             query_params = parse_qs(parsed.query)
@@ -791,20 +899,24 @@ class CrawlerService:
                 "tables": [],
             }
 
-        llm_content = wiki_parser.format_for_llm(parsed_data, max_chars=self.MAX_LLM_CHARS)
-        # 追加更多正文段落，尽可能还原页面信息
-        extra_paragraphs = []
-        for p in soup.find_all("p")[:80]:
-            text = p.get_text(" ", strip=True)
-            if len(text) >= 20:
-                extra_paragraphs.append(text)
-        if extra_paragraphs:
-            llm_content = f"{llm_content}\n\n" + "\n".join(extra_paragraphs)
+        lowered_url = str(url or "").lower()
+        if any(x in lowered_url for x in ["fandom.com", "wikipedia.org"]):
+            llm_content = self._format_generic_llm_content(parsed_data, soup)
+        else:
+            llm_content = wiki_parser.format_for_llm(parsed_data, max_chars=self.MAX_LLM_CHARS)
+            # 追加更多正文段落，尽可能还原页面信息
+            extra_paragraphs = []
+            for p in soup.find_all("p")[:80]:
+                text = p.get_text(" ", strip=True)
+                if len(text) >= 20:
+                    extra_paragraphs.append(text)
+            if extra_paragraphs:
+                llm_content = f"{llm_content}\n\n" + "\n".join(extra_paragraphs)
 
-        # 再追加纯文本兜底，确保长内容传递给 LLM
-        fallback_text = self._extract_text_from_soup(soup)
-        if fallback_text:
-            llm_content = f"{llm_content}\n\n{fallback_text[:20000]}"
+            # 再追加纯文本兜底，确保长内容传递给 LLM
+            fallback_text = self._extract_text_from_soup(soup)
+            if fallback_text:
+                llm_content = f"{llm_content}\n\n{fallback_text[:20000]}"
         preview_content = wiki_parser.format_for_preview(parsed_data, max_chars=self.MAX_PREVIEW_CHARS)
         if not preview_content:
             preview_content = llm_content[: self.MAX_PREVIEW_CHARS]
@@ -859,12 +971,12 @@ class CrawlerService:
         text_parts = []
         first_p = content.find("p")
         if first_p:
-            intro = first_p.get_text(strip=True)
+            intro = first_p.get_text(" ", strip=True)
             if intro and len(intro) > 20:
                 text_parts.append(f"## 简介\n{intro}\n")
 
         for elem in content.find_all(["h1", "h2", "h3", "h4", "p", "li"]):
-            text = elem.get_text(strip=True)
+            text = elem.get_text(" ", strip=True)
             if not text or len(text) < 3:
                 continue
 
@@ -880,7 +992,7 @@ class CrawlerService:
                 rows = table.find_all("tr")
                 for row in rows[:10]:
                     cells = row.find_all(["td", "th"])
-                    row_text = " | ".join([c.get_text(strip=True) for c in cells if c.get_text(strip=True)])
+                    row_text = " | ".join([c.get_text(" ", strip=True) for c in cells if c.get_text(" ", strip=True)])
                     if row_text:
                         text_parts.append(row_text)
 
@@ -1036,7 +1148,7 @@ class CrawlerService:
                         if content_div:
                             raw_paragraphs = []
                             for p in content_div.find_all("p")[:5]:
-                                text = p.get_text(strip=True)
+                                text = p.get_text(" ", strip=True)
                                 if len(text) > 20:
                                     raw_paragraphs.append(text)
 

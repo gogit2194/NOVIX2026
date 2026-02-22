@@ -19,6 +19,7 @@ from typing import Any, Dict, List
 from app.schemas.project import Project, ProjectCreate, ProjectStats
 from app.dependencies import get_card_storage, get_canon_storage, get_draft_storage
 from app.utils.path_safety import sanitize_id, validate_path_within
+from app.utils.language import normalize_language
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -52,10 +53,12 @@ async def list_projects():
             project_file = project_dir / "project.yaml"
             if project_file.exists():
                 data = await card_storage.read_yaml(project_file)
+                language = normalize_language(data.get("language"), default="zh")
                 projects.append({
                     "id": project_dir.name,
                     "name": data.get("name", project_dir.name),
                     "description": data.get("description", ""),
+                    "language": language,
                     "created_at": data.get("created_at", ""),
                     "updated_at": data.get("updated_at", "")
                 })
@@ -100,19 +103,22 @@ async def create_project(project: ProjectCreate):
     
     # Save project metadata / 保存项目元数据
     now = datetime.now().isoformat()
+    lang_value = project.language if isinstance(project.language, str) else project.language.value
     project_data = {
         "name": project.name,
         "description": project.description,
+        "language": lang_value,
         "created_at": now,
         "updated_at": now
     }
-    
+
     await card_storage.write_yaml(project_dir / "project.yaml", project_data)
-    
+
     return {
         "id": project_id,
         "name": project.name,
         "description": project.description,
+        "language": lang_value,
         "created_at": now,
         "updated_at": now
     }
@@ -142,11 +148,13 @@ async def get_project(project_id: str):
         raise HTTPException(status_code=404, detail="Project not found")
     
     data = await card_storage.read_yaml(project_file)
+    language = normalize_language(data.get("language"), default="zh")
     
     return {
         "id": project_id,
         "name": data.get("name", project_id),
         "description": data.get("description", ""),
+        "language": language,
         "created_at": data.get("created_at", ""),
         "updated_at": data.get("updated_at", "")
     }

@@ -4,8 +4,13 @@
  * Usage:
  *   import { t, setLocale, getLocale } from '../i18n';
  *   const label = t('session.start');  // => "开始写作" or "Start Writing"
+ *
+ *   // React components: use useLocale() for reactive re-renders on switch
+ *   import { useLocale } from '../i18n';
+ *   const { locale, setLocale, t } = useLocale();
  */
 
+import { useSyncExternalStore } from 'react';
 import zhCN from './locales/zh-CN';
 import enUS from './locales/en-US';
 
@@ -18,6 +23,21 @@ const bundles = {
 
 let currentLocale = localStorage.getItem(LOCALE_KEY) || 'zh-CN';
 let currentBundle = bundles[currentLocale] || zhCN;
+
+// --- Pub/Sub for reactive locale updates ---
+
+const listeners = new Set();
+
+function subscribe(listener) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function emitChange() {
+  listeners.forEach((fn) => fn());
+}
+
+// --- Public API ---
 
 /**
  * Get translation by dot-path key.
@@ -38,7 +58,7 @@ export function t(key, params) {
 }
 
 /**
- * Set the active locale.
+ * Set the active locale and notify all subscribers.
  * @param {string} locale - e.g. "zh-CN" or "en-US"
  */
 export function setLocale(locale) {
@@ -46,6 +66,7 @@ export function setLocale(locale) {
   currentLocale = locale;
   currentBundle = bundles[locale];
   localStorage.setItem(LOCALE_KEY, locale);
+  emitChange();
 }
 
 /**
@@ -62,6 +83,22 @@ export function getLocale() {
  */
 export function getSupportedLocales() {
   return Object.keys(bundles);
+}
+
+/**
+ * React Hook: returns current locale and helpers; triggers re-render on switch.
+ *
+ * @returns {{ locale: string, setLocale: Function, t: Function }}
+ *
+ * @example
+ * function MyComponent() {
+ *   const { locale, setLocale, t } = useLocale();
+ *   return <button onClick={() => setLocale('en-US')}>{t('common.save')}</button>;
+ * }
+ */
+export function useLocale() {
+  const locale = useSyncExternalStore(subscribe, getLocale);
+  return { locale, setLocale, t };
 }
 
 // --- internal ---

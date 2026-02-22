@@ -28,6 +28,7 @@ from app.context_engine.trace_collector import trace_collector
 from app.orchestrator.storage_adapter import UnifiedStorageAdapter
 from app.schemas.draft import SceneBrief
 from app.utils.chapter_id import ChapterIDValidator
+from app.utils.language import normalize_language
 from app.utils.logger import get_logger
 from app.services.chapter_binding_service import chapter_binding_service
 from app.orchestrator._types import SessionStatus
@@ -61,7 +62,7 @@ class Orchestrator(ContextMixin, AnalysisMixin):
         max_research_rounds (int): 最大研究轮次 / Maximum research loop rounds.
     """
 
-    def __init__(self, data_dir: Optional[str] = None, progress_callback: Optional[Callable] = None):
+    def __init__(self, data_dir: Optional[str] = None, progress_callback: Optional[Callable] = None, language: str = "zh"):
         """
         初始化编排器 / Initialize the Orchestrator.
 
@@ -72,6 +73,7 @@ class Orchestrator(ContextMixin, AnalysisMixin):
         Args:
             data_dir: 数据目录路径 / Path to data directory (defaults to Settings.data_dir).
             progress_callback: 进度更新回调函数 / Async callback for progress events.
+            language: 写作语言 / Writing language ("zh" or "en").
         """
         if data_dir is None:
             from app.config import settings
@@ -84,9 +86,29 @@ class Orchestrator(ContextMixin, AnalysisMixin):
 
         self.gateway = get_gateway()
 
-        self.archivist = ArchivistAgent(self.gateway, self.card_storage, self.canon_storage, self.draft_storage)
-        self.writer = WriterAgent(self.gateway, self.card_storage, self.canon_storage, self.draft_storage)
-        self.editor = EditorAgent(self.gateway, self.card_storage, self.canon_storage, self.draft_storage)
+        normalized_language = normalize_language(language, default="zh")
+        self.language = normalized_language
+        self.archivist = ArchivistAgent(
+            self.gateway,
+            self.card_storage,
+            self.canon_storage,
+            self.draft_storage,
+            language=normalized_language,
+        )
+        self.writer = WriterAgent(
+            self.gateway,
+            self.card_storage,
+            self.canon_storage,
+            self.draft_storage,
+            language=normalized_language,
+        )
+        self.editor = EditorAgent(
+            self.gateway,
+            self.card_storage,
+            self.canon_storage,
+            self.draft_storage,
+            language=normalized_language,
+        )
 
         self.storage_adapter = UnifiedStorageAdapter(self.card_storage, self.canon_storage, self.draft_storage)
         self.select_engine = ContextSelectEngine()
@@ -107,6 +129,21 @@ class Orchestrator(ContextMixin, AnalysisMixin):
         self.max_iterations = int(session_cfg.get("max_iterations", 5))
         self.max_question_rounds = int(session_cfg.get("max_question_rounds", 2))
         self.max_research_rounds = int(session_cfg.get("max_research_rounds", 5))
+
+    def set_language(self, language: str) -> None:
+        normalized = normalize_language(language, default=self.language)
+        if normalized not in {"zh", "en"}:
+            return
+        self.language = normalized
+        try:
+            self.archivist.language = normalized
+            self.writer.language = normalized
+            self.editor.language = normalized
+        except Exception:
+            return
+
+    def _p(self, zh: str, en: str) -> str:
+        return en if self.language == "en" else zh
 
     async def start_session(
         self,
@@ -773,8 +810,8 @@ class Orchestrator(ContextMixin, AnalysisMixin):
         working_payload: Optional[Dict[str, Any]] = None
         stop_reason = "unknown"
 
-        await self._emit_progress("正在阅读前文...", stage="read_previous", round=0)
-        await self._emit_progress("正在阅读相关事实摘要...", stage="read_facts", round=0)
+        await self._emit_progress(self._p("正在阅读前文...", "Reading prior text..."), stage="read_previous", round=0)
+        await self._emit_progress(self._p("正在阅读相关事实摘要...", "Fetching facts..."), stage="read_facts", round=0)
         character_names = self._extract_scene_brief_names(scene_brief, limit=3)
         instruction_entities = await chapter_binding_service.extract_entities_from_text(project_id, chapter_goal)
         instruction_characters = instruction_entities.get("characters") or []
@@ -809,7 +846,7 @@ class Orchestrator(ContextMixin, AnalysisMixin):
             missing_cards.append(name)
 
         try:
-            initial_gaps = working_memory_service.build_gap_items(scene_brief, chapter_goal)
+            initial_gaps = working_memory_service.build_gap_items(scene_brief, chapter_goal, language=self.language)
             if offline:
                 plan_queries: List[str] = []
                 for gap in initial_gaps or []:
@@ -819,7 +856,7 @@ class Orchestrator(ContextMixin, AnalysisMixin):
                 extra_queries = list(dict.fromkeys([q for q in plan_queries if q]))[:4]
                 if extra_queries:
                     await self._emit_progress(
-                        "研究计划已生成（离线）",
+                        self._p("研究计划已生成（离线）", "Research plan generated (offline)"),
                         stage="generate_plan",
                         round=1,
                         queries=extra_queries,
@@ -835,7 +872,7 @@ class Orchestrator(ContextMixin, AnalysisMixin):
                 extra_queries = [str(q).strip() for q in (plan.get("queries") or []) if str(q).strip()]
                 if extra_queries:
                     await self._emit_progress(
-                        "研究计划已生成",
+                        self._p("研究计划已生成", "Research plan generated"),
                         stage="generate_plan",
                         round=1,
                         queries=extra_queries,
@@ -846,10 +883,10 @@ class Orchestrator(ContextMixin, AnalysisMixin):
 
         for round_index in range(1, self.max_research_rounds + 1):
             await self._emit_progress(
-                f"正在思考...（第{round_index}轮）",
+                self._p(f"正在思考...（第{round_index}轮）", f"Preparing retrieval... (Round {round_index})"),
                 stage="prepare_retrieval",
                 round=round_index,
-                note="整理缺口并准备检索",
+                note=self._p("整理缺口并准备检索", "Organizing gaps and preparing retrieval"),
             )
 
             merged_extra_queries = extra_queries
@@ -867,6 +904,7 @@ class Orchestrator(ContextMixin, AnalysisMixin):
                 force_minimum_questions=False,
                 semantic_rerank=False if offline else None,
                 round_index=round_index,
+                language=self.language,
             )
             if not payload:
                 stop_reason = "empty_payload"
@@ -886,9 +924,12 @@ class Orchestrator(ContextMixin, AnalysisMixin):
                 ]
                 hit_cards = list(dict.fromkeys((hit_characters + hit_world)))[:5]
                 if hit_cards:
-                    card_message = "正在查询设定“" + "”“".join(hit_cards) + "”"
+                    card_message = self._p(
+                        "正在查询设定“" + "”“".join(hit_cards) + "”",
+                        "Looking up cards: " + ", ".join(hit_cards),
+                    )
                 else:
-                    card_message = "正在查询相关设定..."
+                    card_message = self._p("正在查询相关设定...", "Looking up cards...")
 
                 await self._emit_progress(
                     card_message,
@@ -921,13 +962,13 @@ class Orchestrator(ContextMixin, AnalysisMixin):
             queries = list(dict.fromkeys(queries))
             top_sources = self._extract_top_sources(evidence_groups, limit=3)
             await self._emit_progress(
-                f"正在检索...（第{round_index}轮）",
+                self._p(f"正在检索...（第{round_index}轮）", f"Executing retrieval... (Round {round_index})"),
                 stage="execute_retrieval",
                 round=round_index,
                 queries=queries,
                 hits=hits,
                 top_sources=top_sources,
-                note="已完成检索，正在整理证据",
+                note=self._p("已完成检索，正在整理证据", "Retrieval completed; organizing evidence"),
             )
 
             research_trace.append(
@@ -947,40 +988,40 @@ class Orchestrator(ContextMixin, AnalysisMixin):
             if report.get("sufficient") is True:
                 stop_reason = "sufficient"
                 await self._emit_progress(
-                    "证据判定：充分，准备结束研究",
+                    self._p("证据判定：充分，准备结束研究", "Evidence check: sufficient; preparing to finish research"),
                     stage="self_check",
                     round=round_index,
                     stop_reason=stop_reason,
-                    note="证据充分，提前结束研究",
+                    note=self._p("证据充分，提前结束研究", "Sufficient evidence; ending research early"),
                 )
                 break
 
             if round_index >= self.max_research_rounds:
                 stop_reason = "max_rounds"
                 await self._emit_progress(
-                    "证据仍不足，已到最大轮次",
+                    self._p("证据仍不足，已到最大轮次", "Evidence still insufficient; reached max rounds"),
                     stage="self_check",
                     round=round_index,
                     stop_reason=stop_reason,
-                    note="达到最大轮次，进入反问或待确认",
+                    note=self._p("达到最大轮次，进入反问或待确认", "Max rounds reached; entering questions/confirmation"),
                 )
                 break
 
             await self._emit_progress(
-                "证据不足，继续检索",
+                self._p("证据不足，继续检索", "Evidence insufficient; continuing retrieval"),
                 stage="self_check",
                 round=round_index,
-                note="证据不足，进入下一轮",
+                note=self._p("证据不足，进入下一轮", "Insufficient evidence; moving to next round"),
             )
 
             if offline:
                 stop_reason = "offline_stop"
                 await self._emit_progress(
-                    "离线模式：停止继续规划检索",
+                    self._p("离线模式：停止继续规划检索", "Offline mode: stop planning further retrieval"),
                     stage="self_check",
                     round=round_index,
                     stop_reason=stop_reason,
-                    note="离线评测仅执行第1轮检索",
+                    note=self._p("离线评测仅执行第1轮检索", "Offline evaluation runs only the first retrieval round"),
                 )
                 break
 
@@ -994,15 +1035,15 @@ class Orchestrator(ContextMixin, AnalysisMixin):
             if not extra_queries:
                 stop_reason = "no_queries"
                 await self._emit_progress(
-                    "研究计划为空，停止检索",
+                    self._p("研究计划为空，停止检索", "Research plan empty; stopping retrieval"),
                     stage="self_check",
                     round=round_index,
                     stop_reason=stop_reason,
-                    note="缺口无法转化为有效检索",
+                    note=self._p("缺口无法转化为有效检索", "Gaps cannot be converted into effective retrieval queries"),
                 )
                 break
             await self._emit_progress(
-                "研究计划已生成",
+                self._p("研究计划已生成", "Research plan generated"),
                 stage="generate_plan",
                 round=round_index + 1,
                 queries=extra_queries,
@@ -1020,13 +1061,13 @@ class Orchestrator(ContextMixin, AnalysisMixin):
         if research_trace and stop_reason:
             stop_note = ""
             if stop_reason == "sufficient":
-                stop_note = "证据充分，提前结束研究"
+                stop_note = self._p("证据充分，提前结束研究", "Sufficient evidence; ending research early")
             elif stop_reason == "max_rounds":
-                stop_note = "达到最大轮次，进入反问或待确认"
+                stop_note = self._p("达到最大轮次，进入反问或待确认", "Max rounds reached; entering questions/confirmation")
             elif stop_reason == "no_queries":
-                stop_note = "无法生成有效检索，停止研究"
+                stop_note = self._p("无法生成有效检索，停止研究", "Cannot generate effective retrieval queries; stopping research")
             else:
-                stop_note = "研究流程提前停止"
+                stop_note = self._p("研究流程提前停止", "Research flow stopped early")
             research_trace[-1]["stop_reason"] = stop_reason
             research_trace[-1]["note"] = stop_note
 
@@ -1066,7 +1107,7 @@ class Orchestrator(ContextMixin, AnalysisMixin):
         Raises:
             RuntimeError: 如果最终文本为空 / If final text is empty.
         """
-        await self._emit_progress("正在撰写...", stage="writing", status="writing")
+        await self._emit_progress(self._p("正在撰写...", "Writing..."), stage="writing", status="writing")
         if self.progress_callback:
             await self.progress_callback({
                 "type": "stream_start",

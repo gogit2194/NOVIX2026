@@ -9,9 +9,11 @@ import { useParams } from 'react-router-dom';
 import { bindingsAPI, canonAPI, draftsAPI, volumesAPI } from '../../api';
 import { Button, Card, Input, cn } from '../ui/core';
 import logger from '../../utils/logger';
+import { useLocale } from '../../i18n';
 
 
 const FactsEncyclopedia = ({ projectId: overrideProjectId, onFactSelect }) => {
+  const { t } = useLocale();
   const { projectId: routeProjectId } = useParams();
   const projectId = overrideProjectId || routeProjectId;
 
@@ -92,17 +94,17 @@ const FactsEncyclopedia = ({ projectId: overrideProjectId, onFactSelect }) => {
 
   const handleDeleteFact = async (factId) => {
     if (!factId) {
-      alert('该事实缺少 ID，无法删除。');
+      alert(t('facts.noIdError'));
       return;
     }
-    if (!window.confirm('确认删除该事实吗？该操作不可撤销。')) return;
+    if (!window.confirm(t('facts.deleteConfirm'))) return;
 
     try {
       await canonAPI.delete(projectId, factId);
       mutate();
     } catch (error) {
       logger.error(error);
-      alert('删除失败，请稍后重试。');
+      alert(t('facts.deleteFailed'));
     }
   };
 
@@ -119,7 +121,7 @@ const FactsEncyclopedia = ({ projectId: overrideProjectId, onFactSelect }) => {
       mutate();
     } catch (error) {
       logger.error(error);
-      alert('保存失败，请稍后重试。');
+      alert(t('facts.saveFailed'));
     }
   };
 
@@ -128,7 +130,7 @@ const FactsEncyclopedia = ({ projectId: overrideProjectId, onFactSelect }) => {
 
     const statement = (creatingFact.content || creatingFact.statement || '').trim();
     if (!statement) {
-      alert('请输入事实内容。');
+      alert(t('facts.contentRequired'));
       return;
     }
 
@@ -146,7 +148,7 @@ const FactsEncyclopedia = ({ projectId: overrideProjectId, onFactSelect }) => {
       mutate();
     } catch (error) {
       logger.error(error);
-      alert('新增失败，请稍后重试。');
+      alert(t('facts.addFailed'));
     }
   };
 
@@ -208,14 +210,14 @@ const FactsEncyclopedia = ({ projectId: overrideProjectId, onFactSelect }) => {
       mutate();
     } catch (error) {
       logger.error(error);
-      alert('保存失败，请稍后重试。');
+      alert(t('facts.saveFailed'));
     }
   };
 
   if (isLoading) {
     return (
       <div className="anti-theme h-full flex items-center justify-center text-[var(--vscode-fg-subtle)] text-xs bg-[var(--vscode-bg)]">
-        加载中...
+        {t('common.loading')}
       </div>
     );
   }
@@ -230,8 +232,8 @@ const FactsEncyclopedia = ({ projectId: overrideProjectId, onFactSelect }) => {
             </div>
             <div className="leading-tight">
               <div className="flex items-baseline gap-2">
-                <div className="text-sm font-bold text-[var(--vscode-fg)]">事实全典</div>
-                <div className="text-[11px] text-[var(--vscode-fg-subtle)]">{stats.chapterCount} 章 · {stats.factCount} 条事实</div>
+                <div className="text-sm font-bold text-[var(--vscode-fg)]">{t('facts.encyclopediaTitle')}</div>
+                <div className="text-[11px] text-[var(--vscode-fg-subtle)]">{stats.chapterCount} {t('facts.chapterUnit')} · {stats.factCount} {t('facts.factUnit')}</div>
               </div>
             </div>
           </div>
@@ -242,7 +244,7 @@ const FactsEncyclopedia = ({ projectId: overrideProjectId, onFactSelect }) => {
         <div className="h-full overflow-y-auto custom-scrollbar facts-scroll p-2 space-y-3">
           {(filteredTree.volumes || []).length === 0 ? (
             <div className="p-6 text-center text-xs text-[var(--vscode-fg-subtle)] border border-dashed border-[var(--vscode-sidebar-border)] rounded-[6px] bg-[var(--vscode-bg)]">
-              暂无事实记录
+              {t('facts.noFacts')}
             </div>
           ) : (
             filteredTree.volumes.map((volume) => (
@@ -309,6 +311,7 @@ function VolumeSection({
   onDeleteFact,
   onFactSelect,
 }) {
+  const { t } = useLocale();
   const volumeSummaryKey = `volume-${volume.id}`;
   const volumeSummaryExpanded = expandedSummaries.has(volumeSummaryKey);
   const chapters = volume.chapters || [];
@@ -323,14 +326,14 @@ function VolumeSection({
         </div>
 
         <div className="mt-2 flex items-start gap-1">
-          <span className="text-[10px] text-[var(--vscode-fg-subtle)] shrink-0">摘要</span>
+          <span className="text-[10px] text-[var(--vscode-fg-subtle)] shrink-0">{t('common.summary')}</span>
           <button
             className="flex-1 text-left text-[11px] text-[var(--vscode-fg)] leading-snug"
             onClick={() => onToggleSummary(volumeSummaryKey)}
             title={volume.summary || ''}
           >
             <span className={volumeSummaryExpanded ? '' : 'line-clamp-2'}>
-              {volume.summary && volume.summary.trim() ? volume.summary : '暂无摘要'}
+              {volume.summary && volume.summary.trim() ? volume.summary : t('facts.noSummary')}
             </span>
           </button>
 
@@ -346,14 +349,14 @@ function VolumeSection({
                 })
               }
               className="p-2 rounded-[6px] text-[var(--vscode-fg-subtle)] hover:text-[var(--vscode-fg)] hover:bg-[var(--vscode-list-hover)] transition-none"
-              title="编辑摘要"
+              title={t('facts.editSummary')}
             >
               <Pencil size={14} />
             </button>
             <button
               onClick={() => onToggleSummary(volumeSummaryKey)}
               className="p-2 rounded-[6px] text-[var(--vscode-fg-subtle)] hover:text-[var(--vscode-fg)] hover:bg-[var(--vscode-list-hover)] transition-none"
-              title={volumeSummaryExpanded ? '收起' : '展开'}
+              title={volumeSummaryExpanded ? t('common.collapse') : t('common.expand')}
             >
               <ChevronDown size={14} />
             </button>
@@ -402,6 +405,7 @@ function ChapterBlock({
   onToggleFact,
   onFactSelect,
 }) {
+  const { t } = useLocale();
   const facts = chapter.facts || [];
   const chapterSummaryKey = `chapter-${chapter.id}`;
 
@@ -414,8 +418,8 @@ function ChapterBlock({
   const binding = bindingResp?.binding;
   const boundCharacters = binding?.characters || [];
   const charactersText = binding
-    ? (boundCharacters.length ? boundCharacters.join('、') : '无')
-    : '未建立';
+    ? (boundCharacters.length ? boundCharacters.join('、') : t('common.none'))
+    : t('facts.noBinding');
 
   return (
     <div className="border border-[var(--vscode-sidebar-border)] rounded-[4px] bg-[var(--vscode-bg)] overflow-hidden">
@@ -439,13 +443,13 @@ function ChapterBlock({
         </span>
 
         <span className="text-[10px] font-mono text-[var(--vscode-fg-subtle)]">{chapter.id}</span>
-        <span className="text-[12px] text-[var(--vscode-fg)] truncate flex-1">{chapter.title || '未命名章节'}</span>
+        <span className="text-[12px] text-[var(--vscode-fg)] truncate flex-1">{chapter.title || t('chapter.noTitle')}</span>
 
         <div className="flex items-center gap-1">
           <button
             type="button"
             className="p-1 rounded-[4px] text-[var(--vscode-fg-subtle)] hover:text-[var(--vscode-fg)] hover:bg-[var(--vscode-list-hover)] transition-none"
-            title="新增事实"
+            title={t('facts.addFactBtn')}
             onClick={(e) => {
               e.stopPropagation();
               onAddFact?.(chapter.id);
@@ -461,14 +465,14 @@ function ChapterBlock({
       {isExpanded && (
         <div className="border-t border-[var(--vscode-sidebar-border)] bg-[var(--vscode-bg)] overflow-hidden">
           <div className="px-2 py-2 flex items-start gap-1">
-            <span className="text-[10px] text-[var(--vscode-fg-subtle)] shrink-0">摘要</span>
+            <span className="text-[10px] text-[var(--vscode-fg-subtle)] shrink-0">{t('common.summary')}</span>
             <button
               className="flex-1 text-left text-[11px] text-[var(--vscode-fg)] leading-snug"
               onClick={() => onToggleSummary(chapterSummaryKey)}
               title={chapter.summary || ''}
             >
               <span className={summaryExpanded ? '' : 'line-clamp-2'}>
-                {chapter.summary && chapter.summary.trim() ? chapter.summary : '暂无摘要'}
+                {chapter.summary && chapter.summary.trim() ? chapter.summary : t('facts.noSummary')}
               </span>
             </button>
 
@@ -484,14 +488,14 @@ function ChapterBlock({
                   })
                 }
                 className="p-1 rounded-[4px] text-[var(--vscode-fg-subtle)] hover:text-[var(--vscode-fg)] hover:bg-[var(--vscode-list-hover)] transition-none"
-                title="编辑摘要"
+                title={t('facts.editSummary')}
               >
                 <Pencil size={12} />
               </button>
               <button
                 onClick={() => onToggleSummary(chapterSummaryKey)}
                 className="p-1 rounded-[4px] text-[var(--vscode-fg-subtle)] hover:text-[var(--vscode-fg)] hover:bg-[var(--vscode-list-hover)] transition-none"
-                title={summaryExpanded ? '收起' : '展开'}
+                title={summaryExpanded ? t('common.collapse') : t('common.expand')}
               >
                 <ChevronDown size={12} />
               </button>
@@ -499,12 +503,12 @@ function ChapterBlock({
           </div>
 
           <div className="px-2 pb-2 flex items-start gap-1">
-            <span className="text-[10px] text-[var(--vscode-fg-subtle)] shrink-0">角色</span>
+            <span className="text-[10px] text-[var(--vscode-fg-subtle)] shrink-0">{t('common.characters')}</span>
             <div
               className="flex-1 text-[11px] text-[var(--vscode-fg)] leading-snug truncate"
-              title={bindingLoading ? '加载中...' : charactersText}
+              title={bindingLoading ? t('common.loading') : charactersText}
             >
-              {bindingLoading ? '加载中...' : charactersText}
+              {bindingLoading ? t('common.loading') : charactersText}
             </div>
           </div>
 
@@ -529,7 +533,7 @@ function ChapterBlock({
                 })}
               </div>
             ) : (
-              <div className="px-2 py-3 text-[11px] text-[var(--vscode-fg-subtle)]">暂无事实</div>
+              <div className="px-2 py-3 text-[11px] text-[var(--vscode-fg-subtle)]">{t('facts.empty')}</div>
             )}
           </div>
         </div>
@@ -539,9 +543,10 @@ function ChapterBlock({
 }
 
 function FactRow({ fact, index, expanded, onToggleExpand, onEdit, onDelete, onSelect }) {
+  const { t } = useLocale();
   const statement = (fact.statement || fact.content || '').trim();
   const title = (fact.title || '').trim();
-  const display = title && title !== statement ? `${title}：${statement}` : (statement || title || '暂无事实内容');
+  const display = title && title !== statement ? `${title}：${statement}` : (statement || title || t('facts.noContent'));
 
   return (
     <div
@@ -557,8 +562,8 @@ function FactRow({ fact, index, expanded, onToggleExpand, onEdit, onDelete, onSe
         <button
           type="button"
           className="mt-0.5 p-0.5 rounded-[2px] text-[var(--vscode-fg-subtle)] hover:text-[var(--vscode-fg)] hover:bg-[var(--vscode-list-hover)] transition-none"
-          title={expanded ? '收起' : '展开'}
-          aria-label={expanded ? '收起' : '展开'}
+          title={expanded ? t('common.collapse') : t('common.expand')}
+          aria-label={expanded ? t('common.collapse') : t('common.expand')}
           onClick={(e) => {
             e.stopPropagation();
             onToggleExpand?.();
@@ -581,7 +586,7 @@ function FactRow({ fact, index, expanded, onToggleExpand, onEdit, onDelete, onSe
             e.stopPropagation();
             onEdit?.();
           }}
-          title="编辑"
+          title={t('common.edit')}
         >
           <Pencil size={11} strokeWidth={1.7} />
         </button>
@@ -591,7 +596,7 @@ function FactRow({ fact, index, expanded, onToggleExpand, onEdit, onDelete, onSe
             e.stopPropagation();
             onDelete?.();
           }}
-          title="删除"
+          title={t('common.delete')}
         >
           <Trash2 size={11} strokeWidth={1.7} />
         </button>
@@ -601,17 +606,18 @@ function FactRow({ fact, index, expanded, onToggleExpand, onEdit, onDelete, onSe
 }
 
 function EditFactDialog({ open, fact, onChange, onClose, onSave }) {
+  const { t } = useLocale();
   if (!open || !fact) return null;
 
   return (
     <div className="anti-theme fixed inset-0 z-50 flex items-center justify-center bg-black/20 px-4">
       <div className="w-full max-w-md border border-[var(--vscode-sidebar-border)] bg-[var(--vscode-bg)] text-[var(--vscode-fg)] rounded-[6px] shadow-none overflow-hidden">
         <div className="px-4 py-3 border-b border-[var(--vscode-sidebar-border)] bg-[var(--vscode-sidebar-bg)] flex items-center justify-between">
-          <div className="text-sm font-bold text-[var(--vscode-fg)]">编辑事实</div>
+          <div className="text-sm font-bold text-[var(--vscode-fg)]">{t('facts.editTitle')}</div>
           <button
             className="p-2 rounded-[6px] hover:bg-[var(--vscode-list-hover)] text-[var(--vscode-fg-subtle)] hover:text-[var(--vscode-fg)] transition-none"
             onClick={onClose}
-            title="关闭"
+            title={t('common.close')}
           >
             <X size={16} />
           </button>
@@ -619,14 +625,14 @@ function EditFactDialog({ open, fact, onChange, onClose, onSave }) {
 
         <div className="p-4 space-y-3">
           <Input
-            placeholder="事实标题（可选）"
+            placeholder={t('facts.titlePlaceholder')}
             value={fact.title || ''}
             onChange={(e) => onChange({ ...fact, title: e.target.value })}
             className="h-10 text-sm bg-[var(--vscode-input-bg)] border-[var(--vscode-input-border)] text-[var(--vscode-fg)] focus-visible:border-[var(--vscode-focus-border)] focus-visible:ring-[var(--vscode-focus-border)]"
           />
 
           <textarea
-            placeholder="事实内容"
+            placeholder={t('facts.contentPlaceholder')}
             value={fact.content || fact.statement || ''}
             onChange={(e) => onChange({ ...fact, content: e.target.value })}
             className="w-full min-h-[140px] text-sm bg-[var(--vscode-input-bg)] border border-[var(--vscode-input-border)] rounded-[6px] px-3 py-2 text-[var(--vscode-fg)] focus:outline-none focus:ring-2 focus:ring-[var(--vscode-focus-border)] focus:border-[var(--vscode-focus-border)] resize-none"
@@ -639,13 +645,13 @@ function EditFactDialog({ open, fact, onChange, onClose, onSave }) {
             onClick={onClose}
             className="h-8 px-3 text-xs rounded-[4px] border border-[var(--vscode-input-border)] text-[var(--vscode-fg)] hover:bg-[var(--vscode-list-hover)] shadow-none"
           >
-            取消
+            {t('common.cancel')}
           </Button>
           <Button
             onClick={onSave}
             className="h-8 px-3 text-xs rounded-[4px] bg-[var(--vscode-list-active)] text-[var(--vscode-list-active-fg)] hover:opacity-90 shadow-none"
           >
-            保存
+            {t('common.save')}
           </Button>
         </div>
       </div>
@@ -654,17 +660,18 @@ function EditFactDialog({ open, fact, onChange, onClose, onSave }) {
 }
 
 function CreateFactDialog({ open, fact, onChange, onClose, onSave }) {
+  const { t } = useLocale();
   if (!open || !fact) return null;
 
   return (
     <div className="anti-theme fixed inset-0 z-50 flex items-center justify-center bg-black/20 px-4">
       <div className="w-full max-w-md border border-[var(--vscode-sidebar-border)] bg-[var(--vscode-bg)] text-[var(--vscode-fg)] rounded-[6px] shadow-none overflow-hidden">
         <div className="px-4 py-3 border-b border-[var(--vscode-sidebar-border)] bg-[var(--vscode-sidebar-bg)] flex items-center justify-between">
-          <div className="text-sm font-bold text-[var(--vscode-fg)]">新增事实</div>
+          <div className="text-sm font-bold text-[var(--vscode-fg)]">{t('facts.addTitle')}</div>
           <button
             className="p-2 rounded-[6px] hover:bg-[var(--vscode-list-hover)] text-[var(--vscode-fg-subtle)] hover:text-[var(--vscode-fg)] transition-none"
             onClick={onClose}
-            title="关闭"
+            title={t('common.close')}
           >
             <X size={16} />
           </button>
@@ -672,18 +679,18 @@ function CreateFactDialog({ open, fact, onChange, onClose, onSave }) {
 
         <div className="p-4 space-y-3">
           <div className="text-[11px] text-[var(--vscode-fg-subtle)]">
-            章节：<span className="font-mono">{fact.chapterId}</span>
+            {t('facts.chapterLabel')}：<span className="font-mono">{fact.chapterId}</span>
           </div>
 
           <Input
-            placeholder="事实标题（可选）"
+            placeholder={t('facts.titlePlaceholder')}
             value={fact.title || ''}
             onChange={(e) => onChange({ ...fact, title: e.target.value })}
             className="h-10 text-sm bg-[var(--vscode-input-bg)] border-[var(--vscode-input-border)] text-[var(--vscode-fg)] focus-visible:border-[var(--vscode-focus-border)] focus-visible:ring-[var(--vscode-focus-border)]"
           />
 
           <textarea
-            placeholder="事实内容（必填）"
+            placeholder={t('facts.contentRequiredPlaceholder')}
             value={fact.content || ''}
             onChange={(e) => onChange({ ...fact, content: e.target.value })}
             className="w-full min-h-[140px] text-sm bg-[var(--vscode-input-bg)] border border-[var(--vscode-input-border)] rounded-[6px] px-3 py-2 text-[var(--vscode-fg)] focus:outline-none focus:ring-2 focus:ring-[var(--vscode-focus-border)] focus:border-[var(--vscode-focus-border)] resize-none"
@@ -696,13 +703,13 @@ function CreateFactDialog({ open, fact, onChange, onClose, onSave }) {
             onClick={onClose}
             className="h-8 px-3 text-xs rounded-[4px] border border-[var(--vscode-input-border)] text-[var(--vscode-fg)] hover:bg-[var(--vscode-list-hover)] shadow-none"
           >
-            取消
+            {t('common.cancel')}
           </Button>
           <Button
             onClick={onSave}
             className="h-8 px-3 text-xs rounded-[4px] bg-[var(--vscode-list-active)] text-[var(--vscode-list-active-fg)] hover:opacity-90 shadow-none"
           >
-            新增
+            {t('facts.addBtn')}
           </Button>
         </div>
       </div>
@@ -711,17 +718,18 @@ function CreateFactDialog({ open, fact, onChange, onClose, onSave }) {
 }
 
 function EditSummaryDialog({ open, summary, onChange, onClose, onSave }) {
+  const { t } = useLocale();
   if (!open || !summary) return null;
 
   return (
     <div className="anti-theme fixed inset-0 z-50 flex items-center justify-center bg-black/20 px-4">
       <div className="w-full max-w-md border border-[var(--vscode-sidebar-border)] bg-[var(--vscode-bg)] text-[var(--vscode-fg)] rounded-[6px] shadow-none overflow-hidden">
         <div className="px-4 py-3 border-b border-[var(--vscode-sidebar-border)] bg-[var(--vscode-sidebar-bg)] flex items-center justify-between">
-          <div className="text-sm font-bold text-[var(--vscode-fg)]">编辑摘要</div>
+          <div className="text-sm font-bold text-[var(--vscode-fg)]">{t('facts.editSummaryTitle')}</div>
           <button
             className="p-2 rounded-[6px] hover:bg-[var(--vscode-list-hover)] text-[var(--vscode-fg-subtle)] hover:text-[var(--vscode-fg)] transition-none"
             onClick={onClose}
-            title="关闭"
+            title={t('common.close')}
           >
             <X size={16} />
           </button>
@@ -729,7 +737,7 @@ function EditSummaryDialog({ open, summary, onChange, onClose, onSave }) {
 
         <div className="p-4 space-y-3">
           <textarea
-            placeholder="摘要内容"
+            placeholder={t('facts.summaryPlaceholder')}
             value={summary.text || ''}
             onChange={(e) => onChange({ ...summary, text: e.target.value })}
             className="w-full min-h-[180px] text-sm bg-[var(--vscode-input-bg)] border border-[var(--vscode-input-border)] rounded-[6px] px-3 py-2 text-[var(--vscode-fg)] focus:outline-none focus:ring-2 focus:ring-[var(--vscode-focus-border)] focus:border-[var(--vscode-focus-border)] resize-none"
@@ -742,13 +750,13 @@ function EditSummaryDialog({ open, summary, onChange, onClose, onSave }) {
             onClick={onClose}
             className="h-8 px-3 text-xs rounded-[4px] border border-[var(--vscode-input-border)] text-[var(--vscode-fg)] hover:bg-[var(--vscode-list-hover)] shadow-none"
           >
-            取消
+            {t('common.cancel')}
           </Button>
           <Button
             onClick={onSave}
             className="h-8 px-3 text-xs rounded-[4px] bg-[var(--vscode-list-active)] text-[var(--vscode-list-active-fg)] hover:opacity-90 shadow-none"
           >
-            保存
+            {t('common.save')}
           </Button>
         </div>
       </div>

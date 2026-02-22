@@ -12,6 +12,7 @@ import { projectsAPI } from '../api';
 import { Button, Input, Card } from '../components/ui/core';
 import { Plus, Book, Clock, ChevronRight, RotateCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useLocale } from '../i18n';
 
 const fetcher = (fn) => fn().then((res) => res.data);
 
@@ -37,14 +38,12 @@ const ProjectCardSkeleton = () => (
  * @component
  * @param {Function} [onSelectProject] - 选择项目后的回调，若提供则不导航
  * @returns {JSX.Element} 项目列表页面
- *
- * @example
- * <ProjectList onSelectProject={(project) => handleSelect(project)} />
  */
 function ProjectList({ onSelectProject }) {
   const navigate = useNavigate();
+  const { t } = useLocale();
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [newProject, setNewProject] = useState({ name: '', description: '' });
+  const [newProject, setNewProject] = useState({ name: '', description: '', language: 'zh' });
   const [loading, setLoading] = useState(false);
 
   const { data: projects = [], isLoading } = useSWR(
@@ -57,19 +56,17 @@ function ProjectList({ onSelectProject }) {
     e.preventDefault();
     setLoading(true);
     try {
-      // 调用 API 创建新项目
       const response = await projectsAPI.create(newProject);
-      // 更新项目列表缓存
       mutate('projects-list');
       setShowCreateForm(false);
-      setNewProject({ name: '', description: '' });
+      setNewProject({ name: '', description: '', language: 'zh' });
       if (onSelectProject) {
         onSelectProject(response.data);
       } else {
         navigate(`/project/${response.data.id}`);
       }
     } catch (error) {
-      alert('创建失败：' + (error.response?.data?.detail || error.message));
+      alert(t('error.createFailed') + '：' + (error.response?.data?.detail || error.message));
     } finally {
       setLoading(false);
     }
@@ -79,62 +76,71 @@ function ProjectList({ onSelectProject }) {
     <div className="anti-theme min-h-full p-8 max-w-5xl mx-auto flex flex-col gap-10 bg-[var(--vscode-bg)] text-[var(--vscode-fg)]">
       <div className="flex justify-between items-end pb-4 border-b border-[var(--vscode-sidebar-border)]">
         <div>
-          <h2 className="text-2xl font-serif font-bold text-ink-900 tracking-tight">我的作品</h2>
-          <p className="text-ink-500 mt-2 text-sm">选择一部小说继续创作，或开启新的篇章。</p>
+          <h2 className="text-2xl font-serif font-bold text-ink-900 tracking-tight">{t('projectList.title')}</h2>
+          <p className="text-ink-500 mt-2 text-sm">{t('projectList.subtitle')}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="ghost" onClick={() => mutate('projects-list')} disabled={isLoading}>
             <RotateCcw size={16} className={isLoading ? 'animate-spin mr-2' : 'mr-2'} />
-            刷新
+            {t('projectList.refresh')}
           </Button>
           <Button onClick={() => setShowCreateForm(true)}>
             <Plus size={16} className="mr-2" />
-            新建作品
+            {t('projectList.createBtn')}
           </Button>
         </div>
       </div>
 
-      {/* ========================================================================
-          创建表单区域 / Create Form Section
-          ======================================================================== */}
+      {/* 创建表单区域 / Create Form Section */}
       {showCreateForm && (
         <div className="mb-6">
           <Card className="ws-paper">
             <div className="p-6">
               <h3 className="text-lg font-medium text-ink-900 mb-4 flex items-center">
-                <Book size={18} className="mr-2 text-ink-500" /> 初始化新书
+                <Book size={18} className="mr-2 text-ink-500" /> {t('projectList.createForm.title')}
               </h3>
               <form onSubmit={handleCreate} className="space-y-4 max-w-lg">
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-ink-500">书名</label>
+                  <label className="text-xs font-medium text-ink-500">{t('projectList.createForm.nameLabel')}</label>
                   <Input
                     type="text"
                     value={newProject.name}
                     onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
-                    placeholder="例如：此时此刻"
+                    placeholder={t('projectList.createForm.namePlaceholder')}
                     required
                     className="bg-[var(--vscode-input-bg)]"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-ink-500">简介</label>
+                  <label className="text-xs font-medium text-ink-500">{t('projectList.createForm.descLabel')}</label>
                   <textarea
                     value={newProject.description}
                     onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
                     className="flex min-h-[80px] w-full rounded-[6px] border border-[var(--vscode-input-border)] bg-[var(--vscode-input-bg)] px-3 py-2 text-sm ring-offset-background placeholder:text-ink-400 focus-visible:outline-none focus-visible:border-[var(--vscode-focus-border)] disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
-                    placeholder="简要描述..."
+                    placeholder={t('projectList.createForm.descPlaceholder')}
                   />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-ink-500">{t('projectList.createForm.languageLabel')}</label>
+                  <select
+                    value={newProject.language}
+                    onChange={(e) => setNewProject({ ...newProject, language: e.target.value })}
+                    className="flex w-full rounded-[6px] border border-[var(--vscode-input-border)] bg-[var(--vscode-input-bg)] px-3 py-2 text-sm focus-visible:outline-none focus-visible:border-[var(--vscode-focus-border)] transition-colors"
+                  >
+                    <option value="zh">{t('projectList.createForm.languageZh')}</option>
+                    <option value="en">{t('projectList.createForm.languageEn')}</option>
+                  </select>
                 </div>
                 <div className="flex space-x-3 pt-2">
                   <Button type="submit" disabled={loading}>
-                    创建
+                    {t('projectList.createForm.submitBtn')}
                   </Button>
                   <Button
                     type="button"
                     variant="ghost"
                     onClick={() => setShowCreateForm(false)}
                   >
-                    取消
+                    {t('projectList.createForm.cancelBtn')}
                   </Button>
                 </div>
               </form>
@@ -143,11 +149,9 @@ function ProjectList({ onSelectProject }) {
         </div>
       )}
 
-      {/* ========================================================================
-          项目网格区域 / Projects Grid Section
-          ======================================================================== */}
+      {/* 项目网格区域 / Projects Grid Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* 加载骨架屏 - Skeleton Loading */}
+        {/* 加载骨架屏 */}
         {isLoading && (
           <>
             <ProjectCardSkeleton />
@@ -156,18 +160,18 @@ function ProjectList({ onSelectProject }) {
           </>
         )}
 
-        {/* 空状态 - Empty State */}
+        {/* 空状态 */}
         {!isLoading && projects.length === 0 && (
           <div className="col-span-full flex flex-col items-center justify-center py-24 border border-dashed border-[var(--vscode-sidebar-border)] rounded-[6px] bg-[var(--vscode-bg)]">
             <Book className="h-12 w-12 text-ink-400 mb-4 opacity-50" />
-            <p className="text-ink-500">暂无作品</p>
+            <p className="text-ink-500">{t('projectList.empty')}</p>
             <Button variant="link" onClick={() => setShowCreateForm(true)} className="mt-2 text-ink-900">
-              开始创作
+              {t('projectList.emptyAction')}
             </Button>
           </div>
         )}
 
-        {/* 项目卡片列表 - Project Cards */}
+        {/* 项目卡片列表 */}
         {!isLoading && projects.map((project) => (
             <div key={project.id}>
               <Card
@@ -179,11 +183,11 @@ function ProjectList({ onSelectProject }) {
                     {project.name}
                   </h3>
                   <p className="text-sm text-ink-500 mb-6 line-clamp-2 flex-1">
-                    {project.description || '暂无简介'}
+                    {project.description || t('projectList.noDesc')}
                   </p>
                   <div className="flex items-center text-xs text-ink-400 mt-auto pt-4 border-t border-[var(--vscode-sidebar-border)]">
                     <Clock size={12} className="mr-2" />
-                    {new Date(project.created_at).toLocaleDateString('zh-CN')}
+                    {new Date(project.created_at).toLocaleDateString()}
                   </div>
 
                   <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity">

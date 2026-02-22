@@ -19,6 +19,7 @@ export interface Project {
   id: string;                      // 项目唯一标识
   name: string;                    // 项目名称
   description?: string;            // 项目描述
+  language?: 'zh' | 'en';          // 写作语言（中文/英文）
   created_at: string;              // 创建时间（ISO 8601）
   updated_at: string;              // 更新时间（ISO 8601）
 }

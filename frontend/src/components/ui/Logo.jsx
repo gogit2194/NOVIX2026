@@ -1,4 +1,5 @@
 ﻿import React from 'react';
+import { useLocale } from '../../i18n';
 
 export function Logo({ size = 'default', showText = true }) {
   const sizeClasses = {
@@ -21,11 +22,12 @@ export function Logo({ size = 'default', showText = true }) {
 }
 
 export function LogoFull({ className = '' }) {
+  const { t } = useLocale();
   return (
     <div className={`flex flex-col items-center ${className}`}>
       <Logo size="large" />
       <span className="text-xs text-ink-400 mt-1 tracking-widest">
-        多智能体小说写作引擎
+        {t('logo.subtitle')}
       </span>
     </div>
   );

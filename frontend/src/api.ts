@@ -101,7 +101,10 @@ export const cardsAPI = {
     api.get(`${API_BASE}/projects/${projectId}/cards/style`),
   updateStyle: (projectId: string, data: StyleCard): Promise<AxiosResponse> =>
     api.put(`${API_BASE}/projects/${projectId}/cards/style`, data),
-  extractStyle: (projectId: string, data: { content: string }): Promise<AxiosResponse<{ style: string }>> =>
+  extractStyle: (
+    projectId: string,
+    data: { content: string; language?: string }
+  ): Promise<AxiosResponse<{ style: string }>> =>
     llmApi.post(`${API_BASE}/projects/${projectId}/cards/style/extract`, data),
 };
 

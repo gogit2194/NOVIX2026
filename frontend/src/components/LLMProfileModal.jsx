@@ -16,6 +16,7 @@ import { Save, X, RefreshCw, Trash2 } from 'lucide-react';
 import { Button, Input } from './ui/core';
 import { configAPI } from '../api';
 import logger from '../utils/logger';
+import { useLocale } from '../i18n';
 
 /**
  * LLM 配置对话框 - 创建和编辑 LLM 提供商配置
@@ -44,6 +45,7 @@ import logger from '../utils/logger';
  * @returns {JSX.Element} LLM 配置对话框 / LLM profile modal element
  */
 export default function LLMProfileModal({ open, profile, onClose, onSave, onDelete }) {
+    const { t } = useLocale();
     const [fetchedModels, setFetchedModels] = useState([]);
     const [fetchingModels, setFetchingModels] = useState(false);
     const [fetchWarning, setFetchWarning] = useState('');
@@ -76,7 +78,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
                 });
             } else {
                 setFormData({
-                    name: '新建配置',
+                    name: t('llmModal.defaultName'),
                     provider: 'openai',
                     api_key: '',
                     model: '',
@@ -99,8 +101,8 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
         { id: 'kimi', label: 'Kimi（月之暗面）' },
         { id: 'openai', label: 'OpenAI' },
         { id: 'qwen', label: 'Qwen（通义千问）' },
-        { id: 'custom', label: '自定义 / 本地模型' },
-        { id: 'mock', label: '模拟测试' },
+        { id: 'custom', label: t('llmModal.providerCustom') },
+        { id: 'mock', label: t('llmModal.providerMock') },
     ].sort((a, b) => a.label.localeCompare(b.label));
 
     const OPENAI_MODELS = [
@@ -150,7 +152,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
 
     const handleFetchModels = async () => {
         if (!formData.api_key) {
-            alert("请先填写接口密钥");
+            alert(t('llmModal.pleaseEnterKey'));
             return;
         }
 
@@ -174,7 +176,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
             logger.error("Failed to fetch models", error);
             setFetchWarning('');
             const errorMsg = error.response?.data?.detail || error.message;
-            alert(`获取模型列表失败: ${errorMsg}\n\n提示: 请检查您选择的模型提供商是否与输入的密钥一致。`);
+            alert(t('llmModal.fetchFailed', { message: errorMsg }));
         } finally {
             setFetchingModels(false);
         }
@@ -188,7 +190,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
         const profileId = formData.id || profile?.id;
         if (!profileId) return;
 
-        if (!window.confirm("确定要删除该配置卡片吗？此操作不可撤销。")) return;
+        if (!window.confirm(t('llmModal.deleteConfirm'))) return;
 
         try {
             setDeleting(true);
@@ -199,7 +201,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
             }
             onClose();
         } catch (e) {
-            alert("删除配置卡片失败");
+            alert(t('llmModal.deleteFailed'));
         } finally {
             setDeleting(false);
         }
@@ -225,7 +227,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
                 {/* 头部 */}
                 <div className="flex items-center justify-between p-6 border-b border-[var(--vscode-sidebar-border)] bg-[var(--vscode-sidebar-bg)]">
                     <h2 className="text-xl font-bold text-[var(--vscode-fg)] flex items-center gap-2">
-                        {profile ? '编辑配置卡片' : '新建配置卡片'}
+                        {profile ? t('llmModal.editTitle') : t('llmModal.createTitle')}
                     </h2>
                     <Button variant="ghost" size="icon" onClick={onClose} className="text-[var(--vscode-fg)] border border-[var(--vscode-input-border)] hover:bg-[var(--vscode-list-hover)] shadow-none">
                         <X size={20} />
@@ -243,11 +245,11 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
                             transition={{ delay: 0.1 }}
                             className="space-y-2"
                         >
-                            <label className="text-xs font-semibold text-[var(--vscode-fg-subtle)] uppercase">卡片名称</label>
+                            <label className="text-xs font-semibold text-[var(--vscode-fg-subtle)] uppercase">{t('llmModal.nameLabel')}</label>
                             <Input
                                 value={formData.name}
                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                placeholder="例如：主力创作模型"
+                                placeholder={t('llmModal.namePlaceholder')}
                                 className="bg-[var(--vscode-input-bg)] border-[var(--vscode-input-border)] text-[var(--vscode-fg)] focus-visible:border-[var(--vscode-focus-border)] focus-visible:ring-[var(--vscode-focus-border)]"
                             />
                         </motion.div>
@@ -257,7 +259,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
                             transition={{ delay: 0.15 }}
                             className="space-y-2"
                         >
-                            <label className="text-xs font-semibold text-[var(--vscode-fg-subtle)] uppercase">模型提供商</label>
+                            <label className="text-xs font-semibold text-[var(--vscode-fg-subtle)] uppercase">{t('llmModal.providerLabel')}</label>
                             <select
                                 value={formData.provider}
                                 onChange={(e) => {
@@ -299,7 +301,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
                                     transition={{ duration: 0.2 }}
                                     className="space-y-2"
                                 >
-                                    <label className="text-xs font-semibold text-[var(--vscode-fg-subtle)] uppercase">接口密钥</label>
+                                    <label className="text-xs font-semibold text-[var(--vscode-fg-subtle)] uppercase">{t('llmModal.apiKeyLabel')}</label>
                                     <Input
                                         type="password"
                                         value={formData.api_key}
@@ -307,7 +309,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
                                         placeholder="sk-..."
                                         className="bg-[var(--vscode-input-bg)] border-[var(--vscode-input-border)] text-[var(--vscode-fg)] focus-visible:border-[var(--vscode-focus-border)] focus-visible:ring-[var(--vscode-focus-border)]"
                                     />
-                                    <p className="text-xs text-[var(--vscode-fg-subtle)]">配置将加密存储在本地文件中。</p>
+                                    <p className="text-xs text-[var(--vscode-fg-subtle)]">{t('llmModal.apiKeyNote')}</p>
                                 </motion.div>
                             )}
                         </AnimatePresence>
@@ -321,7 +323,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
                                     exit={{ opacity: 0, height: 0 }}
                                     className="space-y-2"
                                 >
-                                    <label className="text-xs font-semibold text-[var(--vscode-fg-subtle)] uppercase">接口地址</label>
+                                    <label className="text-xs font-semibold text-[var(--vscode-fg-subtle)] uppercase">{t('llmModal.baseUrlLabel')}</label>
                                     <Input
                                         value={formData.base_url}
                                         onChange={(e) => setFormData({ ...formData, base_url: e.target.value })}
@@ -340,7 +342,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
                             className="space-y-2"
                         >
                             <div className="flex items-center justify-between">
-                                <label className="text-xs font-semibold text-[var(--vscode-fg-subtle)] uppercase">模型选择</label>
+                                <label className="text-xs font-semibold text-[var(--vscode-fg-subtle)] uppercase">{t('llmModal.modelLabel')}</label>
                                 <Button
                                     variant="ghost"
                                     size="sm"
@@ -353,7 +355,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
                                     ) : (
                                         <RefreshCw size={10} className="mr-1" />
                                     )}
-                                    获取已部署模型
+                                    {fetchingModels ? t('llmModal.fetching') : t('llmModal.fetchModels')}
                                 </Button>
                             </div>
                             {formData.provider === 'openai' ? (
@@ -362,7 +364,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
                                     onChange={(e) => setFormData({ ...formData, model: e.target.value })}
                                     className="w-full px-3 py-2 border border-[var(--vscode-input-border)] rounded-[6px] bg-[var(--vscode-input-bg)] text-[var(--vscode-fg)] focus:outline-none focus:border-[var(--vscode-focus-border)] transition-none"
                                 >
-                                    <option value="">请选择模型...</option>
+                                    <option value="">{t('llmModal.modelPlaceholder')}</option>
                                     {(fetchedModels.length > 0 ? fetchedModels : OPENAI_MODELS).map(m => (
                                         <option key={m.id || m} value={m.id || m}>{m.label || m}</option>
                                     ))}
@@ -373,7 +375,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
                                     onChange={(e) => setFormData({ ...formData, model: e.target.value })}
                                     className="w-full px-3 py-2 border border-[var(--vscode-input-border)] rounded-[6px] bg-[var(--vscode-input-bg)] text-[var(--vscode-fg)] focus:outline-none focus:border-[var(--vscode-focus-border)] transition-none"
                                 >
-                                    <option value="">请选择模型...</option>
+                                    <option value="">{t('llmModal.modelPlaceholder')}</option>
                                     {(fetchedModels.length > 0 ? fetchedModels : ANTHROPIC_MODELS).map(m => (
                                         <option key={m.id || m} value={m.id || m}>{m.label || m}</option>
                                     ))}
@@ -384,7 +386,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
                                     onChange={(e) => setFormData({ ...formData, model: e.target.value })}
                                     className="w-full px-3 py-2 border border-[var(--vscode-input-border)] rounded-[6px] bg-[var(--vscode-input-bg)] text-[var(--vscode-fg)] focus:outline-none focus:border-[var(--vscode-focus-border)] transition-none"
                                 >
-                                    <option value="">请选择模型...</option>
+                                    <option value="">{t('llmModal.modelPlaceholder')}</option>
                                     {(fetchedModels.length > 0 ? fetchedModels : DEEPSEEK_MODELS).map(m => (
                                         <option key={m.id || m} value={m.id || m}>{m.label || m}</option>
                                     ))}
@@ -395,7 +397,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
                                     onChange={(e) => setFormData({ ...formData, model: e.target.value })}
                                     className="w-full px-3 py-2 border border-[var(--vscode-input-border)] rounded-[6px] bg-[var(--vscode-input-bg)] text-[var(--vscode-fg)] focus:outline-none focus:border-[var(--vscode-focus-border)] transition-none"
                                 >
-                                    <option value="">请选择模型...</option>
+                                    <option value="">{t('llmModal.modelPlaceholder')}</option>
                                     {GEMINI_MODELS.map(m => (
                                         <option key={m.id} value={m.id}>{m.label}</option>
                                     ))}
@@ -406,7 +408,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
                                     onChange={(e) => setFormData({ ...formData, model: e.target.value })}
                                     className="w-full px-3 py-2 border border-[var(--vscode-input-border)] rounded-[6px] bg-[var(--vscode-input-bg)] text-[var(--vscode-fg)] focus:outline-none focus:border-[var(--vscode-focus-border)] transition-none"
                                 >
-                                    <option value="">请选择模型...</option>
+                                    <option value="">{t('llmModal.modelPlaceholder')}</option>
                                     {GROK_MODELS.map(m => (
                                         <option key={m.id} value={m.id}>{m.label}</option>
                                     ))}
@@ -417,7 +419,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
                                     onChange={(e) => setFormData({ ...formData, model: e.target.value })}
                                     className="w-full px-3 py-2 border border-[var(--vscode-input-border)] rounded-[6px] bg-[var(--vscode-input-bg)] text-[var(--vscode-fg)] focus:outline-none focus:border-[var(--vscode-focus-border)] transition-none"
                                 >
-                                    <option value="">请选择模型...</option>
+                                    <option value="">{t('llmModal.modelPlaceholder')}</option>
                                     {KIMI_MODELS.map(m => (
                                         <option key={m.id} value={m.id}>{m.label}</option>
                                     ))}
@@ -428,7 +430,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
                                     onChange={(e) => setFormData({ ...formData, model: e.target.value })}
                                     className="w-full px-3 py-2 border border-[var(--vscode-input-border)] rounded-[6px] bg-[var(--vscode-input-bg)] text-[var(--vscode-fg)] focus:outline-none focus:border-[var(--vscode-focus-border)] transition-none"
                                 >
-                                    <option value="">请选择模型...</option>
+                                    <option value="">{t('llmModal.modelPlaceholder')}</option>
                                     {GLM_MODELS.map(m => (
                                         <option key={m.id} value={m.id}>{m.label}</option>
                                     ))}
@@ -439,7 +441,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
                                     onChange={(e) => setFormData({ ...formData, model: e.target.value })}
                                     className="w-full px-3 py-2 border border-[var(--vscode-input-border)] rounded-[6px] bg-[var(--vscode-input-bg)] text-[var(--vscode-fg)] focus:outline-none focus:border-[var(--vscode-focus-border)] transition-none"
                                 >
-                                    <option value="">请选择模型...</option>
+                                    <option value="">{t('llmModal.modelPlaceholder')}</option>
                                     {QWEN_MODELS.map(m => (
                                         <option key={m.id} value={m.id}>{m.label}</option>
                                     ))}
@@ -448,7 +450,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
                                 <Input
                                     value={formData.model}
                                     onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                                    placeholder="例如：llama-2-70b"
+                                placeholder={t('llmModal.customModelPlaceholder')}
                                     className="bg-[var(--vscode-input-bg)] border-[var(--vscode-input-border)] text-[var(--vscode-fg)] focus-visible:border-[var(--vscode-focus-border)] focus-visible:ring-[var(--vscode-focus-border)]"
                                 />
                             )}
@@ -467,7 +469,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
                         >
                             <div className="space-y-2">
                                 <label className="text-xs font-semibold text-[var(--vscode-fg-subtle)] uppercase">
-                                    随机性：{formData.temperature}
+                                    {t('llmModal.temperatureLabel', { value: formData.temperature })}
                                 </label>
                                 <input
                                     type="range"
@@ -492,7 +494,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
                             className="border border-[var(--vscode-input-border)] text-red-400 hover:bg-[var(--vscode-list-hover)] shadow-none"
                         >
                             <Trash2 size={16} className="mr-2" />
-                            删除
+                            {t('llmModal.deleteBtn')}
                         </Button>
                     ) : (
                         <span />
@@ -505,7 +507,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
                             disabled={deleting}
                             className="border border-[var(--vscode-input-border)] text-[var(--vscode-fg)] hover:bg-[var(--vscode-list-hover)] shadow-none"
                         >
-                            取消
+                            {t('llmModal.cancelBtn')}
                         </Button>
                         <Button
                             onClick={handleSave}
@@ -513,7 +515,7 @@ export default function LLMProfileModal({ open, profile, onClose, onSave, onDele
                             className="bg-[var(--vscode-list-active)] text-[var(--vscode-list-active-fg)] hover:opacity-90 shadow-none"
                         >
                             <Save size={16} className="mr-2" />
-                            保存配置
+                            {t('llmModal.saveBtn')}
                         </Button>
                     </div>
                 </div>

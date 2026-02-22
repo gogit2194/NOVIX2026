@@ -16,6 +16,7 @@ import { Check } from 'lucide-react';
 import { Button } from '../ui/core';
 import { draftsAPI, volumesAPI } from '../../api';
 import { cn } from '../ui/core';
+import { useLocale } from '../../i18n';
 
 /**
  * 批量同步分析对话框 - 用户选择要分析的章节并批量触发分析
@@ -76,6 +77,7 @@ export default function AnalysisSyncDialog({
   indexRebuildError = '',
   indexRebuildSuccess = false,
 }) {
+  const { t } = useLocale();
   const [chapters, setChapters] = useState([]);
   const [summaries, setSummaries] = useState({});
   const [volumes, setVolumes] = useState([]);
@@ -154,7 +156,7 @@ export default function AnalysisSyncDialog({
   const handleRebuildIndexes = () => { if (onRebuildIndexes) onRebuildIndexes(); };
   const formatCharacters = (binding) => {
     const list = binding?.characters;
-    if (!Array.isArray(list) || list.length === 0) return '未检出';
+    if (!Array.isArray(list) || list.length === 0) return t('common.unknown');
     return list.join('、');
   };
 
@@ -174,25 +176,25 @@ export default function AnalysisSyncDialog({
         {/* 头部区域 */}
         <div className="bg-[var(--vscode-sidebar-bg)] p-2 border-b border-[var(--vscode-input-border)] flex items-center gap-2">
           <div className="p-1 px-2 text-[11px] font-bold bg-[var(--vscode-list-active)] text-[var(--vscode-list-active-fg)] rounded-[2px]">
-            分析
+            {t('chapter.analyze')}
           </div>
-          <span className="text-xs font-medium text-[var(--vscode-fg)]">同步分析章节</span>
+          <span className="text-xs font-medium text-[var(--vscode-fg)]">{t('writingSession.analysisReview')}</span>
           <div className="flex-1" />
           <span className="text-[10px] text-[var(--vscode-fg-subtle)] mr-2">
-            已选 {selected.size} 项
+            {t('fanfiction.selectedPages').replace('{count}', selected.size)}
           </span>
         </div>
 
         {/* 快捷操作栏 */}
         <div className="bg-[var(--vscode-bg)] px-2 py-1 border-b border-[var(--vscode-input-border)] flex gap-2">
-          <button onClick={selectAll} className="text-[11px] px-2 py-0.5 hover:bg-[var(--vscode-list-hover)] rounded-[2px] transition-none">全选</button>
-          <button onClick={clearAll} className="text-[11px] px-2 py-0.5 hover:bg-[var(--vscode-list-hover)] rounded-[2px] transition-none">清空</button>
+          <button onClick={selectAll} className="text-[11px] px-2 py-0.5 hover:bg-[var(--vscode-list-hover)] rounded-[2px] transition-none">{t('fanfiction.selectAll')}</button>
+          <button onClick={clearAll} className="text-[11px] px-2 py-0.5 hover:bg-[var(--vscode-list-hover)] rounded-[2px] transition-none">{t('fanfiction.deselectAll')}</button>
         </div>
 
         {/* 可滚动列表 */}
         <div className="max-h-[500px] overflow-y-auto overflow-x-hidden py-1">
           {fetching ? (
-            <div className="px-4 py-8 text-center text-xs text-[var(--vscode-fg-subtle)]">正在加载章节...</div>
+            <div className="px-4 py-8 text-center text-xs text-[var(--vscode-fg-subtle)]">{t('common.loading')}</div>
           ) : (
             grouped.map(volume => (
               <div key={volume.id}>
@@ -222,7 +224,7 @@ export default function AnalysisSyncDialog({
                           {checked && <Check size={10} strokeWidth={4} />}
                         </div>
                         <span className="font-mono text-[11px] opacity-70 w-8">{chapter.id}</span>
-                        <span className="truncate">{chapter.title || '未命名'}</span>
+                        <span className="truncate">{chapter.title || t('chapter.noTitle')}</span>
                       </div>
                     )
                   })}
@@ -235,16 +237,16 @@ export default function AnalysisSyncDialog({
         {(loading || error || results.length > 0) && (
           <div className="border-t border-[var(--vscode-input-border)] bg-[var(--vscode-bg)]">
             <div className="px-3 py-1 text-[11px] font-bold text-[var(--vscode-fg-subtle)] bg-[var(--vscode-sidebar-bg)] border-b border-[var(--vscode-sidebar-border)]">
-              处理结果
+              {t('writingSession.analysisReview')}
             </div>
             {loading && (
               <div className="px-3 py-2 text-xs text-[var(--vscode-fg-subtle)]">
-                正在处理章节绑定...
+                {t('common.processing')}
               </div>
             )}
             {error && (
               <div className="px-3 py-2 text-xs text-red-500">
-                同步失败：{error}
+                {t('writingSession.syncFailed')} {error}
               </div>
             )}
             {results.length > 0 && (
@@ -261,20 +263,20 @@ export default function AnalysisSyncDialog({
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-[11px] opacity-70">{item?.chapter || '-'}</span>
                         <span className={success ? 'text-emerald-400' : 'text-red-500'}>
-                          {success ? '成功' : '失败'}
+                          {success ? t('common.success') : t('common.error')}
                         </span>
                       </div>
                       <div className="text-[11px] text-[var(--vscode-fg-subtle)] mt-0.5">
-                        人物：{formatCharacters(item?.binding)}
+                        {t('fact.bindings')}: {formatCharacters(item?.binding)}
                       </div>
                       {!success && itemError ? (
                         <div className="text-[11px] text-red-500 mt-0.5">
-                          原因：{String(itemError)}
+                          {t('common.error')}: {String(itemError)}
                         </div>
                       ) : null}
                       {bindingError && (
                         <div className="text-[11px] text-red-500 mt-0.5">
-                          绑定错误：{bindingError}
+                          {t('error.unknown')}: {bindingError}
                         </div>
                       )}
                     </div>
@@ -285,13 +287,13 @@ export default function AnalysisSyncDialog({
             {(indexRebuildLoading || indexRebuildError || indexRebuildSuccess) && (
               <div className="px-3 py-2 text-xs border-t border-[var(--vscode-sidebar-border)]">
                 {indexRebuildLoading && (
-                  <div className="text-[var(--vscode-fg-subtle)]">正在重建索引...</div>
+                  <div className="text-[var(--vscode-fg-subtle)]">{t('common.processing')}</div>
                 )}
                 {indexRebuildSuccess && !indexRebuildLoading && !indexRebuildError && (
-                  <div className="text-emerald-400">索引重建完成</div>
+                  <div className="text-emerald-400">{t('common.success')}</div>
                 )}
                 {indexRebuildError && (
-                  <div className="text-red-500">索引重建失败：{indexRebuildError}</div>
+                  <div className="text-red-500">{t('error.unknown')}: {indexRebuildError}</div>
                 )}
               </div>
             )}
@@ -305,29 +307,29 @@ export default function AnalysisSyncDialog({
             onClick={onClose}
             className="h-6 px-3 text-xs rounded-[2px] hover:bg-[var(--vscode-list-hover)] transition-none"
           >
-            取消
+            {t('common.cancel')}
           </Button>
           <Button
             onClick={handleConfirm}
             disabled={loading || selected.size === 0}
             className="h-6 px-3 text-xs bg-[var(--vscode-list-active)] text-[var(--vscode-list-active-fg)] hover:opacity-90 rounded-[2px] shadow-none transition-none"
           >
-            {loading ? '处理中...' : '同步'}
+            {loading ? t('common.processing') : t('writingSession.syncAll')}
           </Button>
           <Button
             onClick={handleRebuild}
             disabled={loading || selected.size === 0}
             className="h-6 px-3 text-xs bg-[var(--vscode-bg)] text-[var(--vscode-fg)] border border-[var(--vscode-input-border)] hover:bg-[var(--vscode-list-hover)] rounded-[2px] shadow-none transition-none"
           >
-            {loading ? '处理中...' : '重建绑定'}
+            {loading ? t('common.processing') : t('writingSession.reorderMode')}
           </Button>
           <Button
             onClick={handleRebuildIndexes}
             disabled={loading || indexRebuildLoading}
             className="h-6 px-3 text-xs bg-[var(--vscode-bg)] text-[var(--vscode-fg)] border border-[var(--vscode-input-border)] hover:bg-[var(--vscode-list-hover)] rounded-[2px] shadow-none transition-none"
-            title="重建检索索引（设定卡/事实证据/正文分块）。大量导入/同步/修改后可用于提升检索稳定性。"
+            title={t('analysisSyncDialog.rebuildIndexTitle')}
           >
-            {indexRebuildLoading ? '重建中...' : '重建索引'}
+            {indexRebuildLoading ? t('common.processing') : t('common.refresh')}
           </Button>
         </div>
       </div>

@@ -17,7 +17,7 @@ from app.agents.base import BaseAgent
 from app.utils.text import normalize_newlines, normalize_for_compare
 from app.prompts import (
     EDITOR_REJECTED_CONCEPTS_INSTRUCTION,
-    EDITOR_SYSTEM_PROMPT,
+    get_editor_system_prompt,
     EDITOR_PATCH_END_ANCHOR,
     editor_append_only_prompt,
     editor_patch_ops_prompt,
@@ -50,7 +50,7 @@ class EditorAgent(BaseAgent):
 
     def get_system_prompt(self) -> str:
         """获取系统提示词 - 编辑专用"""
-        return EDITOR_SYSTEM_PROMPT
+        return get_editor_system_prompt(language=self.language)
 
     async def execute(
         self,
@@ -375,6 +375,7 @@ class EditorAgent(BaseAgent):
                 user_feedback=feedback,
                 prefix_hint=prefix_hint,
                 suffix_hint=suffix_hint,
+                language=self.language,
             )
             messages = self.build_messages(
                 system_prompt=prompt.system,
@@ -459,7 +460,7 @@ class EditorAgent(BaseAgent):
             user_feedback=user_feedback,
             memory_pack=memory_pack,
         )
-        prompt = editor_patch_ops_prompt(excerpts=excerpts, user_feedback=user_feedback)
+        prompt = editor_patch_ops_prompt(excerpts=excerpts, user_feedback=user_feedback, language=self.language)
         messages = self.build_messages(
             system_prompt=prompt.system,
             user_prompt=prompt.user,
@@ -504,7 +505,7 @@ class EditorAgent(BaseAgent):
             # When user explicitly requests continuation but patch ops have no
             # effect, switch to append-only generation strategy
             tail_excerpt = normalize_for_compare(original_draft)[-1800:]
-            append_prompt = editor_append_only_prompt(tail_excerpt=tail_excerpt, user_feedback=user_feedback)
+            append_prompt = editor_append_only_prompt(tail_excerpt=tail_excerpt, user_feedback=user_feedback, language=self.language)
             append_messages = self.build_messages(
                 system_prompt=append_prompt.system,
                 user_prompt=append_prompt.user,
@@ -888,6 +889,7 @@ class EditorAgent(BaseAgent):
             user_feedback=user_feedback,
             prefix_hint=prefix_hint,
             suffix_hint=suffix_hint,
+            language=self.language,
         )
 
         messages = self.build_messages(

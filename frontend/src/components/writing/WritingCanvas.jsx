@@ -8,6 +8,7 @@
 
 import React from 'react';
 import { cn } from '../ui/core';
+import { useLocale } from '../../i18n';
 
 /**
  * 写作画布组件 - 正文展示与排版容器
@@ -30,6 +31,7 @@ import { cn } from '../ui/core';
  * @returns {JSX.Element} 包装后的写作画布 / Wrapped writing canvas element
  */
 export const WritingCanvas = ({ children, className, ...props }) => {
+    const { t } = useLocale();
     return (
         <div className="flex-1 h-full overflow-y-auto relative bg-[var(--vscode-bg)] scroll-smooth" {...props}>
             <div className={cn(
@@ -43,8 +45,11 @@ export const WritingCanvas = ({ children, className, ...props }) => {
                   使用 prose 类确保排版一致性，empty:before 提供空状态提示
                   Prose classes ensure consistent typography, empty:before provides hint
                 */}
-                <article className="prose prose-lg prose-slate max-w-none font-serif leading-relaxed text-[var(--vscode-fg)] empty:before:content-['开始写作...'] empty:before:text-[var(--vscode-fg-subtle)]">
+                <article className="prose prose-lg prose-slate max-w-none font-serif leading-relaxed text-[var(--vscode-fg)]">
                     {children}
+                    {!children && (
+                        <span className="text-[var(--vscode-fg-subtle)]">{t('writing.canvasEmpty')}</span>
+                    )}
                 </article>
             </div>
 

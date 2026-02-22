@@ -34,6 +34,8 @@ class SearchService:
     
     def __init__(self):
         self.moegirl_opensearch_api = "https://mzh.moegirl.org.cn/api.php"
+        self.wikipedia_opensearch_api = "https://en.wikipedia.org/w/api.php"
+        self.fandom_search_api = "https://www.fandom.com/api/v1/Search/List"
         self._headers = {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -41,6 +43,35 @@ class SearchService:
                 "Chrome/120.0.0.0 Safari/537.36"
             )
         }
+
+    def _safe_limit(self, max_results: int) -> int:
+        return max(1, min(int(max_results or 10), 20))
+
+    def _looks_cjk(self, text: str) -> bool:
+        body = str(text or "").strip()
+        if not body:
+            return False
+        return any(0x4E00 <= ord(ch) <= 0x9FFF for ch in body)
+
+    def _merge_results(self, groups: List[List[Dict[str, str]]], limit: int) -> List[Dict[str, str]]:
+        merged: List[Dict[str, str]] = []
+        seen = set()
+        for group in groups or []:
+            for item in group or []:
+                if not isinstance(item, dict):
+                    continue
+                url = str(item.get("url") or "").strip()
+                title = str(item.get("title") or "").strip()
+                if not url or not title:
+                    continue
+                key = url.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                merged.append(item)
+                if len(merged) >= limit:
+                    return merged
+        return merged
 
     def _normalize_moegirl_url(self, url: str) -> str:
         """
@@ -83,15 +114,14 @@ class SearchService:
 
         safe = quote(str(title).replace(" ", "_"), safe="")
         return f"https://mzh.moegirl.org.cn/index.php?title={safe}"
-    
-    def search_wiki(self, query: str, max_results: int = 10, engine: str = "moegirl") -> List[Dict[str, str]]:
+
+    def _search_moegirl(self, query: str, limit: int) -> List[Dict[str, str]]:
         """
         Search Moegirlpedia pages.
         
         Args:
             query: Search query
-            max_results: Maximum number of results to return
-            engine: Kept for backward compatibility; ignored (always moegirl)
+            limit: Maximum number of results to return
             
         Returns:
             List of search results with title, url, snippet, and source
@@ -99,8 +129,6 @@ class SearchService:
         q = str(query or "").strip()
         if not q:
             return []
-
-        limit = max(1, min(int(max_results or 10), 20))
 
         try:
             resp = requests.get(
@@ -144,6 +172,111 @@ class SearchService:
                 break
 
         return results
+
+    def _search_wikipedia(self, query: str, limit: int) -> List[Dict[str, str]]:
+        q = str(query or "").strip()
+        if not q:
+            return []
+
+        try:
+            resp = requests.get(
+                self.wikipedia_opensearch_api,
+                params={
+                    "action": "opensearch",
+                    "search": q,
+                    "limit": limit,
+                    "format": "json",
+                },
+                headers=self._headers,
+                timeout=(3, 10),
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as exc:
+            logger.error("Wikipedia API error query=%s err=%s", q, exc)
+            return []
+
+        if not isinstance(data, list) or len(data) < 4:
+            return []
+
+        titles = data[1] or []
+        descriptions = data[2] or []
+        urls = data[3] or []
+
+        results: List[Dict[str, str]] = []
+        seen_urls = set()
+        for i in range(min(len(titles), len(urls))):
+            title = str(titles[i] or "").strip()
+            url = str(urls[i] or "").strip()
+            if not title or not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+
+            desc = str(descriptions[i] or "").strip() if i < len(descriptions) else ""
+            snippet = desc if desc else f"Wikipedia article: {title}"
+            results.append({"title": title, "url": url, "snippet": snippet, "source": "Wikipedia"})
+            if len(results) >= limit:
+                break
+        return results
+
+    def _search_fandom(self, query: str, limit: int) -> List[Dict[str, str]]:
+        """
+        Fandom global search API. Best-effort: if unavailable, return empty list.
+        """
+        q = str(query or "").strip()
+        if not q:
+            return []
+
+        try:
+            resp = requests.get(
+                self.fandom_search_api,
+                params={"query": q, "limit": limit, "ns": 0},
+                headers=self._headers,
+                timeout=(3, 12),
+            )
+            resp.raise_for_status()
+            data = resp.json() or {}
+        except Exception as exc:
+            logger.error("Fandom API error query=%s err=%s", q, exc)
+            return []
+
+        items = data.get("items") or []
+        results: List[Dict[str, str]] = []
+        seen_urls = set()
+        for item in items[:limit]:
+            if not isinstance(item, dict):
+                continue
+            title = str(item.get("title") or "").strip()
+            url = str(item.get("url") or item.get("articleUrl") or "").strip()
+            if not title or not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            snippet = str(item.get("abstract") or item.get("snippet") or "").strip() or f"Fandom article: {title}"
+            results.append({"title": title, "url": url, "snippet": snippet, "source": "Fandom"})
+            if len(results) >= limit:
+                break
+        return results
+
+    def search_wiki(self, query: str, max_results: int = 10, engine: str = "moegirl") -> List[Dict[str, str]]:
+        """
+        Search wiki pages across supported engines: moegirl, wikipedia, fandom.
+        """
+        limit = self._safe_limit(max_results)
+        eng = str(engine or "").strip().lower()
+        if eng in {"auto", "smart"}:
+            # Heuristic routing:
+            # - If query is CJK-heavy, prefer Moegirl.
+            # - Otherwise, merge Fandom + Wikipedia for English queries.
+            if self._looks_cjk(query):
+                return self._search_moegirl(query, limit)
+            fandom = self._search_fandom(query, limit)
+            wiki = self._search_wikipedia(query, limit)
+            return self._merge_results([fandom, wiki], limit)
+        if eng in {"wikipedia", "wiki", "enwiki"}:
+            return self._search_wikipedia(query, limit)
+        if eng in {"fandom"}:
+            return self._search_fandom(query, limit)
+        return self._search_moegirl(query, limit)
 
 
 # Singleton instance

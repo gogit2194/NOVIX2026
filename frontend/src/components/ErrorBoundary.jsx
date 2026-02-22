@@ -12,6 +12,7 @@
 
 import React from 'react';
 import logger from '../utils/logger';
+import { t } from '../i18n';
 
 /**
  * 错误边界组件 - React 组件错误捕获与降级处理
@@ -107,10 +108,10 @@ class ErrorBoundary extends React.Component {
                                 </svg>
                             </div>
                             <h1 className="text-2xl font-bold text-[var(--vscode-fg)] mb-2">
-                                抱歉，出现了错误
+                                {t('errorBoundary.title')}
                             </h1>
                             <p className="text-[var(--vscode-fg-subtle)] text-sm mb-4">
-                                应用遇到了意外问题。请尝试刷新页面。
+                                {t('errorBoundary.hint')}
                             </p>
                         </div>
 
@@ -118,14 +119,14 @@ class ErrorBoundary extends React.Component {
                         {process.env.NODE_ENV === 'development' && this.state.error && (
                             <details className="mb-6 text-left">
                                 <summary className="cursor-pointer text-sm font-medium text-[var(--vscode-fg)] hover:text-[var(--vscode-fg)] mb-2">
-                                    查看详细信息
+                                    {t('errorBoundary.detail')}
                                 </summary>
                                 <div className="bg-[var(--vscode-input-bg)] rounded-[6px] p-3 text-xs font-mono text-[var(--vscode-fg)] overflow-auto max-h-40 border border-[var(--vscode-sidebar-border)]">
-                                    <p className="font-bold mb-1">错误：</p>
+                                    <p className="font-bold mb-1">{t('common.error')}:</p>
                                     <p className="mb-2">{this.state.error.toString()}</p>
                                     {this.state.errorInfo && (
                                         <>
-                                            <p className="font-bold mb-1">堆栈：</p>
+                                            <p className="font-bold mb-1">Stack:</p>
                                             <pre className="whitespace-pre-wrap">
                                                 {this.state.errorInfo.componentStack}
                                             </pre>
@@ -140,18 +141,18 @@ class ErrorBoundary extends React.Component {
                                 onClick={this.handleReset}
                                 className="px-4 py-2 bg-[var(--vscode-list-hover)] hover:opacity-90 text-[var(--vscode-fg)] rounded-[6px] transition-colors text-sm font-medium"
                             >
-                                尝试恢复
+                                {t('errorBoundary.retry')}
                             </button>
                             <button
                                 onClick={this.handleReload}
                                 className="px-4 py-2 bg-[var(--vscode-list-active)] hover:opacity-90 text-[var(--vscode-list-active-fg)] rounded-[6px] transition-colors text-sm font-medium"
                             >
-                                刷新页面
+                                {t('common.retry')}
                             </button>
                         </div>
 
                         <p className="mt-6 text-xs text-[var(--vscode-fg-subtle)]">
-                            如果问题持续出现，请联系技术支持
+                            {t('error.retryLater')}
                         </p>
                     </div>
                 </div>

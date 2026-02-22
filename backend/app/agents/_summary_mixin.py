@@ -122,6 +122,7 @@ class SummaryMixin:
             candidates=prompt_candidates,
             final_draft=cleaned_text,
             limit=limit,
+            language=self.language,
         )
         messages = self.build_messages(
             system_prompt=prompt.system,
@@ -271,7 +272,7 @@ class SummaryMixin:
 
     async def _generate_canon_updates_yaml(self, chapter: str, final_draft: str) -> str:
         """Generate canon updates YAML via LLM."""
-        prompt = archivist_canon_updates_prompt(chapter=chapter, final_draft=final_draft)
+        prompt = archivist_canon_updates_prompt(chapter=chapter, final_draft=final_draft, language=self.language)
         messages = self.build_messages(
             system_prompt=prompt.system,
             user_prompt=prompt.user,
@@ -391,6 +392,7 @@ class SummaryMixin:
             chapter=chapter,
             chapter_title=chapter_title,
             final_draft=final_draft,
+            language=self.language,
         )
         messages = self.build_messages(
             system_prompt=prompt.system,
@@ -429,7 +431,7 @@ class SummaryMixin:
                 }
             )
 
-        prompt = archivist_volume_summary_prompt(volume_id=volume_id, chapter_items=items)
+        prompt = archivist_volume_summary_prompt(volume_id=volume_id, chapter_items=items, language=self.language)
         messages = self.build_messages(
             system_prompt=prompt.system,
             user_prompt=prompt.user,

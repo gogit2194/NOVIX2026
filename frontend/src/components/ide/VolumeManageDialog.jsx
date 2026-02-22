@@ -4,13 +4,15 @@ import { Layers, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { volumesAPI } from '../../api';
 import { cn } from '../ui/core';
 import logger from '../../utils/logger';
+import { useLocale } from '../../i18n';
 
 /**
  * VolumeManageDialog - 分卷管理弹窗
  *
- * 设计目标：资源管理器只展示“分卷-章节树”，分卷的创建/编辑/删除集中在一个轻量弹窗里，避免界面割裂。
+ * 设计目标：资源管理器只展示"分卷-章节树"，分卷的创建/编辑/删除集中在一个轻量弹窗里，避免界面割裂。
  */
 export default function VolumeManageDialog({ open, projectId, onClose }) {
+  const { t } = useLocale();
   const [mode, setMode] = useState('list'); // list | create | edit
   const [draft, setDraft] = useState({ title: '', summary: '' });
   const [editing, setEditing] = useState(null);
@@ -43,7 +45,7 @@ export default function VolumeManageDialog({ open, projectId, onClose }) {
   const handleCreate = async () => {
     const title = (draft.title || '').trim();
     if (!title) {
-      alert('请输入分卷标题');
+      alert(t('volume.titleRequired'));
       return;
     }
     setSaving(true);
@@ -53,7 +55,7 @@ export default function VolumeManageDialog({ open, projectId, onClose }) {
       resetState();
     } catch (error) {
       logger.error(error);
-      alert(`创建分卷失败: ${error.message}`);
+      alert(t('volume.createFailedMsg').replace('{message}', error.message));
     } finally {
       setSaving(false);
     }
@@ -63,7 +65,7 @@ export default function VolumeManageDialog({ open, projectId, onClose }) {
     if (!editing) return;
     const title = (editing.title || '').trim();
     if (!title) {
-      alert('请输入分卷标题');
+      alert(t('volume.titleRequired'));
       return;
     }
     setSaving(true);
@@ -77,7 +79,7 @@ export default function VolumeManageDialog({ open, projectId, onClose }) {
       resetState();
     } catch (error) {
       logger.error(error);
-      alert(`更新分卷失败: ${error.message}`);
+      alert(t('volume.updateFailedMsg').replace('{message}', error.message));
     } finally {
       setSaving(false);
     }
@@ -85,10 +87,10 @@ export default function VolumeManageDialog({ open, projectId, onClose }) {
 
   const handleDelete = async (volumeId) => {
     if (volumeId === 'V1') {
-      alert('默认分卷 V1 不可删除');
+      alert(t('volume.v1CannotDelete'));
       return;
     }
-    if (!window.confirm('确定要删除该分卷吗？该操作不可撤销。')) {
+    if (!window.confirm(t('volume.deleteConfirm'))) {
       return;
     }
 
@@ -98,7 +100,7 @@ export default function VolumeManageDialog({ open, projectId, onClose }) {
       await mutate();
     } catch (error) {
       logger.error(error);
-      alert(`删除分卷失败: ${error.message}`);
+      alert(t('volume.deleteFailedMsg').replace('{message}', error.message));
     } finally {
       setSaving(false);
     }
@@ -115,15 +117,15 @@ export default function VolumeManageDialog({ open, projectId, onClose }) {
               <Layers size={16} />
             </div>
             <div className="leading-tight">
-              <div className="text-sm font-bold text-[var(--vscode-fg)]">分卷管理</div>
-              <div className="text-[11px] text-[var(--vscode-fg-subtle)]">创建、编辑、删除分卷（V1 不可删除）</div>
+              <div className="text-sm font-bold text-[var(--vscode-fg)]">{t('volume.manageTitle')}</div>
+              <div className="text-[11px] text-[var(--vscode-fg-subtle)]">{t('volume.manageSubtitle')}</div>
             </div>
           </div>
 
           <button
             onClick={handleClose}
             className="p-2 rounded-[6px] text-[var(--vscode-fg-subtle)] hover:text-[var(--vscode-fg)] hover:bg-[var(--vscode-list-hover)] transition-none"
-            title="关闭"
+            title={t('common.close')}
           >
             <X size={16} />
           </button>
@@ -131,22 +133,22 @@ export default function VolumeManageDialog({ open, projectId, onClose }) {
 
         <div className="max-h-[70vh] overflow-y-auto custom-scrollbar p-4">
           {isLoading ? (
-            <div className="text-xs text-[var(--vscode-fg-subtle)]">加载中...</div>
+            <div className="text-xs text-[var(--vscode-fg-subtle)]">{t('common.loading')}</div>
           ) : mode === 'list' ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <div className="text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase tracking-wider">分卷列表</div>
+                <div className="text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase tracking-wider">{t('volume.listTitle')}</div>
                 <button
                   className="inline-flex items-center gap-1 text-xs text-[var(--vscode-fg)] hover:text-[var(--vscode-fg)] hover:bg-[var(--vscode-list-hover)] px-2 py-1 rounded-[4px]"
                   onClick={() => setMode('create')}
                 >
-                  <Plus size={12} /> 新建分卷
+                  <Plus size={12} /> {t('volume.newVolume')}
                 </button>
               </div>
 
               {sortedVolumes.length === 0 ? (
                 <div className="p-4 text-center text-xs text-[var(--vscode-fg-subtle)] border border-dashed border-[var(--vscode-sidebar-border)] rounded-[6px]">
-                  暂无分卷
+                  {t('volume.empty')}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -172,7 +174,7 @@ export default function VolumeManageDialog({ open, projectId, onClose }) {
                             setEditing({ ...volume });
                             setMode('edit');
                           }}
-                          title="编辑"
+                          title={t('common.edit')}
                         >
                           <Pencil size={14} />
                         </button>
@@ -184,7 +186,7 @@ export default function VolumeManageDialog({ open, projectId, onClose }) {
                               : 'text-red-500 hover:bg-red-50'
                           )}
                           onClick={() => volume.id !== 'V1' && handleDelete(volume.id)}
-                          title={volume.id === 'V1' ? '默认分卷不可删除' : '删除'}
+                          title={volume.id === 'V1' ? t('volume.v1CannotDelete') : t('common.delete')}
                           disabled={saving || volume.id === 'V1'}
                         >
                           <Trash2 size={14} />
@@ -198,11 +200,11 @@ export default function VolumeManageDialog({ open, projectId, onClose }) {
           ) : (
             <div className="space-y-4">
               <div className="text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase tracking-wider">
-                {mode === 'create' ? '新建分卷' : '编辑分卷'}
+                {mode === 'create' ? t('volume.createTitle') : t('volume.editTitle')}
               </div>
 
               <label className="block space-y-1">
-                <span className="text-[11px] font-semibold text-[var(--vscode-fg-subtle)] uppercase">分卷标题</span>
+                <span className="text-[11px] font-semibold text-[var(--vscode-fg-subtle)] uppercase">{t('volume.titleLabel')}</span>
                 <input
                   value={mode === 'create' ? draft.title : (editing?.title || '')}
                   onChange={(e) => {
@@ -211,13 +213,13 @@ export default function VolumeManageDialog({ open, projectId, onClose }) {
                     else setEditing((prev) => ({ ...prev, title: value }));
                   }}
                   className="w-full px-3 py-2 text-sm rounded-[6px] border border-[var(--vscode-input-border)] bg-[var(--vscode-input-bg)] text-[var(--vscode-fg)] focus:outline-none focus:ring-2 focus:ring-[var(--vscode-focus-border)] focus:border-[var(--vscode-focus-border)]"
-                  placeholder="例如：第一卷"
+                  placeholder={t('volume.titlePlaceholder')}
                   autoFocus
                 />
               </label>
 
               <label className="block space-y-1">
-                <span className="text-[11px] font-semibold text-[var(--vscode-fg-subtle)] uppercase">分卷简介（可选）</span>
+                <span className="text-[11px] font-semibold text-[var(--vscode-fg-subtle)] uppercase">{t('volume.summaryLabel')}</span>
                 <textarea
                   value={mode === 'create' ? draft.summary : (editing?.summary || '')}
                   onChange={(e) => {
@@ -227,7 +229,7 @@ export default function VolumeManageDialog({ open, projectId, onClose }) {
                   }}
                   className="w-full px-3 py-2 text-sm rounded-[6px] border border-[var(--vscode-input-border)] bg-[var(--vscode-input-bg)] text-[var(--vscode-fg)] focus:outline-none focus:ring-2 focus:ring-[var(--vscode-focus-border)] focus:border-[var(--vscode-focus-border)] resize-none"
                   rows={4}
-                  placeholder="一句话描述这一卷的内容（可选）"
+                  placeholder={t('volume.summaryPlaceholder')}
                 />
               </label>
             </div>
@@ -240,7 +242,7 @@ export default function VolumeManageDialog({ open, projectId, onClose }) {
               className="px-3 py-2 text-sm rounded-[6px] border border-[var(--vscode-input-border)] text-[var(--vscode-fg)] hover:bg-[var(--vscode-list-hover)] transition-none"
               onClick={handleClose}
             >
-              关闭
+              {t('common.close')}
             </button>
           ) : (
             <>
@@ -249,14 +251,14 @@ export default function VolumeManageDialog({ open, projectId, onClose }) {
                 onClick={resetState}
                 disabled={saving}
               >
-                取消
+                {t('common.cancel')}
               </button>
               <button
                 className="px-3 py-2 text-sm rounded-[6px] bg-[var(--vscode-list-active)] text-[var(--vscode-list-active-fg)] hover:opacity-90 transition-none disabled:opacity-60"
                 onClick={mode === 'create' ? handleCreate : handleUpdate}
                 disabled={saving}
               >
-                {saving ? '处理中...' : '确认'}
+                {saving ? t('common.processing') : t('common.confirm')}
               </button>
             </>
           )}

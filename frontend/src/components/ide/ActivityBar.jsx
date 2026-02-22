@@ -19,6 +19,7 @@ import {
   Lightbulb,
 } from 'lucide-react';
 import { cn } from '../../components/ui/core';
+import { useLocale } from '../../i18n';
 
 /**
  * ActivityBar - 左侧活动栏导航
@@ -36,6 +37,7 @@ import { cn } from '../../components/ui/core';
  */
 export function ActivityBar() {
   const { state, dispatch } = useIDE();
+  const { t } = useLocale();
   const [showLegalNotice, setShowLegalNotice] = useState(false);
   const [showFullLicense, setShowFullLicense] = useState(false);
 
@@ -43,11 +45,11 @@ export function ActivityBar() {
   // 活动项配置 / Activity Items Configuration
   // ========================================================================
   const icons = [
-    { id: 'explorer', icon: Files, label: '资源管理器' },
-    { id: 'facts', icon: Lightbulb, label: '事实全典' },
-    { id: 'cards', icon: BookOpen, label: '设定卡片' },
-    { id: 'fanfiction', icon: Library, label: '同人导入' },
-    { id: 'agents', icon: Bot, label: '智能体' },
+    { id: 'explorer', icon: Files, label: t('activityBar.explorer') },
+    { id: 'facts', icon: Lightbulb, label: t('activityBar.facts') },
+    { id: 'cards', icon: BookOpen, label: t('activityBar.cards') },
+    { id: 'fanfiction', icon: Library, label: t('activityBar.fanfiction') },
+    { id: 'agents', icon: Bot, label: t('activityBar.agents') },
   ];
 
   // 计算当前活跃按钮的位置（用于动画）
@@ -88,7 +90,7 @@ export function ActivityBar() {
             setShowFullLicense(false);
             setShowLegalNotice(true);
           }}
-          title="声明"
+          title={t('activityBar.legalNotice')}
           className={cn(
             'w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200 group relative z-10',
             'text-[var(--vscode-fg-subtle)] hover:text-[var(--vscode-fg)]'
@@ -119,8 +121,8 @@ export function ActivityBar() {
             >
               <div className="flex items-center justify-between p-4 border-b border-[var(--vscode-sidebar-border)] bg-[var(--vscode-sidebar-bg)]">
                 <div>
-                  <h2 className="text-xl font-bold text-[var(--vscode-fg)]">声明</h2>
-                  <p className="text-xs text-[var(--vscode-fg-subtle)] mt-0.5">请在使用前阅读</p>
+                  <h2 className="text-xl font-bold text-[var(--vscode-fg)]">{t('activityBar.legalNotice')}</h2>
+                  <p className="text-xs text-[var(--vscode-fg-subtle)] mt-0.5">{t('activityBar.legalSubtitle')}</p>
                 </div>
                 <button
                   onClick={() => setShowLegalNotice(false)}
@@ -133,33 +135,33 @@ export function ActivityBar() {
               <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
                 <div className="space-y-4 text-sm text-[var(--vscode-fg)]">
                   <div className="space-y-2">
-                    <div className="text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase tracking-wider">内容版权</div>
+                    <div className="text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase tracking-wider">{t('activityBar.copyright')}</div>
                     <div className="text-sm leading-relaxed text-[var(--vscode-fg)]">
-                      用户对其自行创作、输入、编辑并生成的文本内容，原则上享有相应权利；但用户应自行确保内容不侵犯第三方权利（包括但不限于著作权、肖像权、名誉权、隐私权等）。
+                      {t('activityBar.copyrightText')}
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <div className="text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase tracking-wider">合规与责任</div>
+                    <div className="text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase tracking-wider">{t('activityBar.compliance')}</div>
                     <div className="text-sm leading-relaxed text-[var(--vscode-fg)]">
-                      用户在传播、发布或利用本软件生成/处理的内容时，应遵守所在国家或地区法律法规与平台规则。开发者不对用户的使用行为及其后果承担责任。
+                      {t('activityBar.complianceText')}
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <div className="text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase tracking-wider">使用倡议</div>
+                    <div className="text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase tracking-wider">{t('activityBar.guideline')}</div>
                     <div className="text-sm leading-relaxed text-[var(--vscode-fg)]">
-                      请正确、审慎地使用本软件，尊重原创与他人劳动成果，自觉维护健康的文学创作环境。
+                      {t('activityBar.guidelineText')}
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <div className="text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase tracking-wider">软件许可与商用限制</div>
+                    <div className="text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase tracking-wider">{t('activityBar.license')}</div>
                     <div className="text-sm leading-relaxed text-[var(--vscode-fg)]">
-                      本软件源代码采用 <span className="font-mono text-[12px]">PolyForm Noncommercial License 1.0.0</span>（非商业许可）。未经作者书面授权，禁止将本软件用于任何商业目的或商业化分发。
+                      {t('activityBar.licenseText')}
                     </div>
                     <div className="text-xs text-[var(--vscode-fg-subtle)]">
-                      商业授权联系：<span className="font-mono">1467673018@qq.com</span>
+                      {t('activityBar.commercialContact')} <span className="font-mono">1467673018@qq.com</span>
                     </div>
                   </div>
 
@@ -168,7 +170,7 @@ export function ActivityBar() {
                       onClick={() => setShowFullLicense((v) => !v)}
                       className="text-xs px-3 py-2 rounded-[6px] border border-[var(--vscode-input-border)] hover:bg-[var(--vscode-list-hover)] transition-none text-[var(--vscode-fg)]"
                     >
-                      {showFullLicense ? '收起许可全文' : '查看许可全文'}
+                      {showFullLicense ? t('activityBar.collapseLicense') : t('activityBar.viewLicense')}
                     </button>
                     {showFullLicense && (
                       <pre className="mt-3 whitespace-pre-wrap text-xs leading-relaxed font-mono bg-[var(--vscode-input-bg)] p-4 rounded-[6px] border border-[var(--vscode-sidebar-border)] text-[var(--vscode-fg)]">

@@ -35,18 +35,21 @@ import { configAPI } from '../../../api';
 import { cn, Button } from '../../ui/core';
 import LLMProfileModal from '../../../components/LLMProfileModal';
 import logger from '../../../utils/logger';
+import { useLocale } from '../../../i18n';
 
 // SWR 数据获取器 / SWR data fetcher
 const fetcher = (fn) => fn().then(res => res.data);
 
-const BINDING_ROLES = [
-    { id: 'archivist', label: '档案管理', desc: '除写作以外的分析/检索/同步等任务' },
-    { id: 'writing', label: '写作', desc: '主笔 + 编辑（共用同一模型）' },
-];
-
 const AgentsPanel = ({ children, mode = 'assistant' }) => {
     // mode: 'assistant'（右侧 AI 面板）| 'config'（左侧：仅配置）
     // mode: 'assistant' (right AI panel) | 'config' (left: config only)
+
+    const { t } = useLocale();
+
+    const BINDING_ROLES = [
+        { id: 'archivist', label: t('panels.agents.roleArchivist'), desc: t('panels.agents.roleArchivistDesc') },
+        { id: 'writing', label: t('panels.agents.roleWriting'), desc: t('panels.agents.roleWritingDesc') },
+    ];
 
     // 数据获取
     const { data: profiles = [], isLoading: loadingProfiles } = useSWR(
@@ -123,7 +126,7 @@ const AgentsPanel = ({ children, mode = 'assistant' }) => {
                         <>
                             {/* 角色模型绑定 */}
                             <div className="space-y-3">
-                                <div className="text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase tracking-wider mb-2">角色模型绑定</div>
+                                <div className="text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase tracking-wider mb-2">{t('panels.agents.roleBinding')}</div>
                                 {BINDING_ROLES.map(role => {
                                     const assignedProfileId = role.id === 'writing'
                                         ? (assignments.writer && assignments.writer === assignments.editor
@@ -171,7 +174,7 @@ const AgentsPanel = ({ children, mode = 'assistant' }) => {
                                                     }}
                                                     className="w-full text-xs py-2 pl-2 pr-6 bg-[var(--vscode-input-bg)] border border-[var(--vscode-input-border)] rounded-[6px] focus:border-[var(--vscode-focus-border)] focus:ring-2 focus:ring-[var(--vscode-focus-border)] outline-none transition-none appearance-none cursor-pointer text-[var(--vscode-fg)] font-mono truncate"
                                                 >
-                                                    <option value="" disabled>选择模型...</option>
+                                                    <option value="" disabled>{t('panels.agents.selectModel')}</option>
                                                     {profiles.map(p => (
                                                         <option key={p.id} value={p.id}>
                                                             {p.name}
@@ -184,7 +187,7 @@ const AgentsPanel = ({ children, mode = 'assistant' }) => {
                                                 </div>
                                                 {writingMismatch && (
                                                     <div className="mt-2 text-[10px] text-[var(--vscode-fg-subtle)]">
-                                                        检测到“主笔/编辑”模型绑定不一致；此处会以主笔为准，重新选择会自动同步两者。
+                                                        {t('panels.agents.writingMismatch')}
                                                     </div>
                                                 )}
                                             </div>
@@ -196,14 +199,14 @@ const AgentsPanel = ({ children, mode = 'assistant' }) => {
                             {/* 模型库 */}
                             <div className="pt-4 border-t border-[var(--vscode-sidebar-border)]">
                                 <div className="flex items-center justify-between mb-3">
-                                    <div className="text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase tracking-wider">模型库</div>
+                                    <div className="text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase tracking-wider">{t('panels.agents.modelLibrary')}</div>
                                     <Button
                                         size="sm"
                                         variant="ghost"
                                         onClick={handleCreateProfile}
                                         className="h-6 text-[10px] px-2 border border-[var(--vscode-input-border)] text-[var(--vscode-fg)] hover:bg-[var(--vscode-list-hover)] shadow-none"
                                     >
-                                        <Plus size={12} className="mr-1" /> 添加
+                                        <Plus size={12} className="mr-1" /> {t('panels.agents.addModel')}
                                     </Button>
                                 </div>
 
@@ -223,7 +226,7 @@ const AgentsPanel = ({ children, mode = 'assistant' }) => {
                                     ))}
                                     {profiles.length === 0 && (
                                         <div className="text-center py-6 text-xs text-[var(--vscode-fg-subtle)] border border-dashed border-[var(--vscode-sidebar-border)] rounded-[6px]">
-                                            暂无模型可用
+                                            {t('panels.agents.noModels')}
                                         </div>
                                     )}
                                 </div>
@@ -263,7 +266,7 @@ const AgentsPanel = ({ children, mode = 'assistant' }) => {
                 <div className="flex items-center justify-between px-4 py-3">
                     <h2 className="text-sm font-bold flex items-center gap-2 tracking-wide text-[var(--vscode-fg)]">
                         <Bot size={16} className="text-[var(--vscode-fg)]" />
-                        <span>智能助手</span>
+                        <span>{t('panels.agents.assistantTitle')}</span>
                     </h2>
                 </div>
             </div>

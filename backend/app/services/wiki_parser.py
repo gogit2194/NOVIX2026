@@ -11,6 +11,7 @@ License: PolyForm Noncommercial License 1.0.0
   Wiki page structured parser - Algorithmic parser for extracting structured data (infoboxes, sections, tables) from Wiki HTML without LLM dependency.
 """
 
+import re
 from bs4 import BeautifulSoup
 from typing import Dict, List
 
@@ -29,11 +30,75 @@ class WikiStructuredParser:
     """
 
     SECTION_KEYWORDS = {
-        "appearance": ["外貌", "外观", "Appearance", "形象", "造型", "衣着"],
-        "personality": ["性格", "人格", "特点", "性情", "Personality"],
-        "background": ["背景", "经历", "故事", "来历", "生平", "简介", "Background"],
-        "abilities": ["能力", "技能", "战斗", "招式", "Abilities", "Skills"],
-        "relationships": ["关系", "人际", "羁绊", "相关人物", "Relationships"],
+          "appearance": [
+              "外貌",
+              "外观",
+              "Appearance",
+              "physical appearance",
+              "visual appearance",
+              "形象",
+              "造型",
+              "衣着",
+              "Description",
+              "Physical description",
+              "Depiction",
+              "Design",
+              "Character design",
+          ],
+          "personality": [
+              "性格",
+              "人格",
+              "特点",
+              "性情",
+              "Personality",
+              "personality and traits",
+              "traits",
+              "Characterization",
+              "characterisation",
+              "Characteristics",
+              "Behavior",
+              "Behaviour",
+          ],
+          "background": [
+              "背景",
+              "经历",
+              "故事",
+              "来历",
+              "生平",
+              "简介",
+              "Background",
+              "Biography",
+              "biography and personality",
+              "History",
+              "Overview",
+              "Role",
+              "Role in",
+              "Story",
+          ],
+          "abilities": [
+              "能力",
+              "技能",
+              "战斗",
+              "招式",
+              "Abilities",
+              "Skills",
+              "Powers",
+              "Powers and abilities",
+              "Equipment",
+              "Weapons",
+          ],
+          "relationships": [
+              "关系",
+              "人际",
+              "羁绊",
+              "相关人物",
+              "Relationships",
+              "relationships and affiliations",
+              "Allies",
+              "Enemies",
+              "Family",
+              "Associates",
+          ],
     }
 
     FIELD_MAPPING = {
@@ -47,6 +112,24 @@ class WikiStructuredParser:
         "affiliation": ["所属", "阵营", "组织", "Affiliation"],
         "identity": ["身份", "职业", "Title", "Identity"],
     }
+
+    def _clean_text(self, value: str) -> str:
+        text = str(value or "").strip()
+        text = re.sub(r"\s+", " ", text).strip()
+        return text
+
+    def _map_field_key(self, key_text: str) -> str:
+        key = self._clean_text(key_text)
+        if not key:
+            return ""
+        key_lower = key.lower()
+        for std_key, keywords in self.FIELD_MAPPING.items():
+            for keyword in keywords:
+                if str(keyword or "").lower() in key_lower:
+                    return std_key
+        if 1 < len(key) < 30:
+            return key
+        return ""
 
     def parse_page(self, html: str, title: str = "") -> Dict:
         """Parse full page into structured data"""
@@ -69,41 +152,69 @@ class WikiStructuredParser:
         """Extract data from standard Wiki infobox"""
         data: Dict[str, str] = {}
 
+        def append_field(raw_key: str, raw_value: str) -> None:
+            key = self._map_field_key(raw_key)
+            value = self._clean_text(raw_value)
+            if not key or not value:
+                return
+            if key in data:
+                merged = f"{data[key]}; {value}"
+                if value.lower() in data[key].lower():
+                    return
+                data[key] = merged[:360]
+            else:
+                data[key] = value[:280]
+
         infobox = soup.find(
             "table",
             class_=lambda c: c and ("infobox" in c or "wikitable" in c or "basic-info" in c),
         )
 
-        if not infobox:
-            return data
+        if infobox:
+            for row in infobox.find_all("tr"):
+                header = row.find("th")
+                value = row.find("td")
 
-        for row in infobox.find_all("tr"):
-            header = row.find("th")
-            value = row.find("td")
+                if not header and not value:
+                    cols = row.find_all("td")
+                    if len(cols) == 2:
+                        header = cols[0]
+                        value = cols[1]
 
-            if not header and not value:
-                cols = row.find_all("td")
-                if len(cols) == 2:
-                    header = cols[0]
-                    value = cols[1]
+                if header and value:
+                    key_text = header.get_text(" ", strip=True)
+                    val_text = value.get_text(" ", strip=True)
+                    append_field(key_text, val_text)
 
-            if header and value:
-                key_text = header.get_text(strip=True)
-                val_text = value.get_text(strip=True)
-                if not key_text or not val_text:
-                    continue
+        # Fandom / portable-infobox support
+        portable_boxes = soup.find_all(
+            lambda tag: tag.name in {"aside", "div", "section"}
+            and tag.get("class")
+            and any("portable-infobox" in c for c in tag.get("class"))
+        )
+        for box in portable_boxes[:2]:
+            items = box.find_all(
+                lambda tag: tag.name in {"div", "section"}
+                and (tag.get("data-source") or (tag.get("class") and any("pi-item" in c for c in tag.get("class"))))
+            )
+            for item in items[:80]:
+                label_node = item.find(class_=re.compile(r"(pi-data-label|label|name)", re.IGNORECASE))
+                value_node = item.find(class_=re.compile(r"(pi-data-value|value)", re.IGNORECASE))
+                key_text = ""
+                val_text = ""
+                if label_node:
+                    key_text = label_node.get_text(" ", strip=True)
+                elif item.get("data-source"):
+                    key_text = str(item.get("data-source") or "").strip().replace("_", " ")
 
-                mapped_key = None
-                for std_key, keywords in self.FIELD_MAPPING.items():
-                    if any(kw in key_text for kw in keywords):
-                        mapped_key = std_key
-                        break
-
-                if mapped_key:
-                    data[mapped_key] = val_text
+                if value_node:
+                    val_text = value_node.get_text(" ", strip=True)
                 else:
-                    if 1 < len(key_text) < 15:
-                        data[key_text] = val_text
+                    item_text = item.get_text(" ", strip=True)
+                    if key_text and item_text.lower().startswith(key_text.lower()):
+                        val_text = item_text[len(key_text) :].strip(" :")
+
+                append_field(key_text, val_text)
 
         return data
 
@@ -138,8 +249,8 @@ class WikiStructuredParser:
                     rows.append(f"{texts[0]}: {texts[1]}")
                 else:
                     rows.append(" | ".join(texts))
-            if rows:
-                tables.append(rows)
+        if rows:
+            tables.append(rows)
 
         return tables
 
@@ -151,11 +262,13 @@ class WikiStructuredParser:
 
         for header in headers:
             headline = header.find("span", class_="mw-headline")
-            header_text = headline.get_text(strip=True) if headline else header.get_text(strip=True)
+            header_text = headline.get_text(" ", strip=True) if headline else header.get_text(" ", strip=True)
+            header_lower = str(header_text or "").strip().lower()
 
             section_type = None
             for s_type, keywords in self.SECTION_KEYWORDS.items():
-                if any(kw in header_text for kw in keywords):
+                keyword_lowers = [str(kw or "").strip().lower() for kw in (keywords or []) if str(kw or "").strip()]
+                if any(kw in header_lower for kw in keyword_lowers):
                     section_type = s_type
                     break
 
@@ -166,11 +279,11 @@ class WikiStructuredParser:
                         break
 
                     if sibling.name == "p":
-                        text = sibling.get_text(strip=True)
+                        text = sibling.get_text(" ", strip=True)
                         if len(text) > 10:
                             content_parts.append(text)
                     elif sibling.name in ["ul", "ol"]:
-                        items = [li.get_text(strip=True) for li in sibling.find_all("li")]
+                        items = [li.get_text(" ", strip=True) for li in sibling.find_all("li")]
                         if items:
                             content_parts.append("\n".join(items[:5]))
 
@@ -195,7 +308,7 @@ class WikiStructuredParser:
                     break
 
             if is_clean:
-                text = p.get_text(strip=True)
+                text = p.get_text(" ", strip=True)
                 if len(text) > 30:
                     return text
 
@@ -212,18 +325,25 @@ class WikiStructuredParser:
         if title:
             parts.append(f"{title}")
         if summary:
-            parts.append(summary)
+            parts.append("Summary:\n" + summary)
 
         if infobox:
             lines = [f"{k}: {v}" for k, v in infobox.items() if k and v]
             if lines:
-                parts.append("\n".join(lines))
+                parts.append("Infobox:\n" + "\n".join(lines))
 
         if sections:
-            for _, content in sections.items():
+            section_blocks: List[str] = []
+            for sec_name, content in sections.items():
                 if not content:
                     continue
-                parts.append(content)
+                name = self._clean_text(sec_name).capitalize() if sec_name else "Section"
+                text = self._clean_text(content)
+                if not text:
+                    continue
+                section_blocks.append(f"{name}: {text}")
+            if section_blocks:
+                parts.append("Key Paragraphs:\n" + "\n\n".join(section_blocks[:5]))
 
         text = "\n\n".join([p for p in parts if p]).strip()
         if len(text) > max_chars:

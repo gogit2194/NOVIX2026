@@ -21,7 +21,7 @@ from app.agents._summary_mixin import SummaryMixin
 from app.schemas.draft import SceneBrief, CardProposal
 from app.schemas.card import StyleCard
 from app.prompts import (
-    ARCHIVIST_SYSTEM_PROMPT,
+    get_archivist_system_prompt,
     archivist_style_profile_prompt,
 )
 from app.config import config
@@ -78,11 +78,21 @@ class ArchivistAgent(FanfictionMixin, SummaryMixin, BaseAgent):
     _SIMPLE_RELATION_FACT_RE = re.compile(
         r"^(.{1,12})是(.{1,16})的(母亲|父亲|儿子|女儿|哥哥|姐姐|弟弟|妹妹|妻子|丈夫|恋人|朋友|同学|老师|学生|主人|仆人)[。.!?？]*$"
     )
+    _SIMPLE_RELATION_FACT_RE_EN = re.compile(
+        r"^(.+?) is (.+?)'?s? (mother|father|son|daughter|brother|sister|wife|husband|lover|friend|classmate|teacher|student|master|servant)[.!?]*$",
+        re.IGNORECASE,
+    )
     # Keywords indicating high-value facts for ranking
     _FACT_DENSITY_HINTS = (
         "规则", "禁忌", "代价", "必须", "不允许", "禁止", "承诺", "约定", "隐瞒", "秘密", "交易", "交换", "契约",
         "决定", "发现", "暴露", "背叛", "威胁", "受伤", "病", "死亡", "失踪", "获得", "丢失", "准备", "购买",
         "居住", "搬", "上学", "教育", "监护", "占有", "依赖", "恐惧", "愧疚", "同情", "惆怅",
+    )
+    _FACT_DENSITY_HINTS_EN = (
+        "rule", "taboo", "cost", "must", "forbidden", "promise", "agreement", "secret", "deal",
+        "betrayal", "threat", "injured", "dead", "missing", "obtained", "lost", "fear", "guilt",
+        "decided", "discovered", "revealed", "contract", "obligation", "cannot", "prohibited",
+        "owns", "lives", "moved", "dependent", "responsible",
     )
 
     def _normalize_fact_statement(self, statement: str) -> str:
@@ -95,6 +105,8 @@ class ArchivistAgent(FanfictionMixin, SummaryMixin, BaseAgent):
     def _is_simple_relation_fact(self, statement: str) -> bool:
         """检测是否为简单关系事实 - 仅包含亲属关系"""
         text = self._normalize_fact_statement(statement)
+        if self.language == "en":
+            return bool(self._SIMPLE_RELATION_FACT_RE_EN.match(text))
         return bool(self._SIMPLE_RELATION_FACT_RE.match(text))
 
     def _score_fact_statement(self, statement: str) -> float:
@@ -124,7 +136,8 @@ class ArchivistAgent(FanfictionMixin, SummaryMixin, BaseAgent):
         if re.search(r"\d", text):
             score += 0.3
         # Presence of density hints (rules, secrets, decisions, etc.)
-        if any(h in text for h in self._FACT_DENSITY_HINTS):
+        hints = self._FACT_DENSITY_HINTS_EN if self.language == "en" else self._FACT_DENSITY_HINTS
+        if any(h in text.lower() for h in hints):
             score += 0.8
         # Penalize simple relation facts (lower information value)
         if self._is_simple_relation_fact(text):
@@ -205,7 +218,7 @@ class ArchivistAgent(FanfictionMixin, SummaryMixin, BaseAgent):
 
     def get_system_prompt(self) -> str:
         """获取系统提示词 - 档案员专用"""
-        return ARCHIVIST_SYSTEM_PROMPT
+        return get_archivist_system_prompt(language=self.language)
 
     async def execute(self, project_id: str, chapter: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -810,7 +823,7 @@ class ArchivistAgent(FanfictionMixin, SummaryMixin, BaseAgent):
             return ""
 
         sampled = self._sample_text_for_style_profile(sample_text, max_chars=20000)
-        prompt = archivist_style_profile_prompt(sample_text=sampled)
+        prompt = archivist_style_profile_prompt(sample_text=sampled, language=self.language)
         messages = self.build_messages(
             system_prompt=prompt.system,
             user_prompt=prompt.user,

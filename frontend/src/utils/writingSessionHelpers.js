@@ -28,20 +28,30 @@ export const fetchChapterContent = async ([_, projectId, chapter]) => {
   return '';
 };
 
-/** 计算文本字符数（忽略空格） */
-export const countChars = (text) => (text || '').replace(/\s/g, '').length;
+/** 计算字数/词数（中文按字符，英文按单词） */
+export const countWords = (text, language = 'zh') => {
+  const clean = String(text || '').trim();
+  if (!clean) return 0;
+  if (String(language || 'zh').toLowerCase() === 'en') {
+    return clean.split(/\s+/).filter(Boolean).length;
+  }
+  return clean.replace(/\s/g, '').length;
+};
+
+/** 向后兼容：中文字符计数 */
+export const countChars = (text) => countWords(text, 'zh');
 
 /** 转义正则表达式特殊字符 */
 export const escapeRegExp = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** 计算选区统计信息 */
-export const getSelectionStats = (text, start, end) => {
+export const getSelectionStats = (text, start, end, language = 'zh') => {
   const safeText = text || '';
   const safeStart = Math.max(0, Math.min(start || 0, safeText.length));
   const safeEnd = Math.max(0, Math.min(end || 0, safeText.length));
   const selection = safeText.slice(Math.min(safeStart, safeEnd), Math.max(safeStart, safeEnd));
   return {
-    selectionCount: countChars(selection),
+    selectionCount: countWords(selection, language),
     cursorText: safeText.slice(0, safeStart),
     selectionText: selection,
     selectionStart: Math.min(safeStart, safeEnd),

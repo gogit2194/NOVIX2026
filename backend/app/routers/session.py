@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 from app.orchestrator import Orchestrator, SessionStatus
 from app.routers.websocket import broadcast_progress
 from app.schemas.draft import ChapterSummary
+from app.utils.language import normalize_language
 from app.utils.text import normalize_for_compare
 
 router = APIRouter(tags=["session"])
@@ -55,7 +56,7 @@ def _evict_stale() -> None:
         _last_access.pop(oldest_key, None)
 
 
-def get_orchestrator(project_id: str) -> Orchestrator:
+def get_orchestrator(project_id: str, request_language: Optional[str] = None) -> Orchestrator:
     """获取或创建项目的编排器实例 / Get or create orchestrator instance for a specific project.
 
     Manages per-project orchestrator instances with LRU/TTL eviction.
@@ -76,10 +77,30 @@ def get_orchestrator(project_id: str) -> Orchestrator:
 
     _evict_stale()
 
+    explicit = normalize_language(request_language, default="")
+    if explicit not in {"zh", "en"}:
+        explicit = ""
+
     if project_id not in _orchestrators:
-        _orchestrators[project_id] = Orchestrator(progress_callback=_progress_callback)
+        # Read language from project.yaml for bilingual support
+        language = "zh"
+        try:
+            from pathlib import Path
+            import yaml
+            from app.config import settings
+            project_yaml = Path(settings.data_dir) / project_id / "project.yaml"
+            if project_yaml.exists():
+                data = yaml.safe_load(project_yaml.read_text(encoding="utf-8")) or {}
+                language = normalize_language(data.get("language"), default="zh")
+        except Exception:
+            pass
+        if explicit:
+            language = explicit
+        _orchestrators[project_id] = Orchestrator(progress_callback=_progress_callback, language=language)
     else:
         _orchestrators[project_id].progress_callback = _progress_callback
+        if explicit:
+            _orchestrators[project_id].set_language(explicit)
         _orchestrators.move_to_end(project_id)
     _last_access[project_id] = time.monotonic()
     return _orchestrators[project_id]
@@ -88,6 +109,7 @@ def get_orchestrator(project_id: str) -> Orchestrator:
 class StartSessionRequest(BaseModel):
     """Request body for starting a session."""
 
+    language: Optional[str] = Field(None, description="Writing language override: zh/en or locale-like values")
     chapter: str = Field(..., min_length=1, max_length=50, description="Chapter ID")
     chapter_title: str = Field(..., min_length=1, max_length=200, description="Chapter title")
     chapter_goal: str = Field(..., min_length=1, max_length=2000, description="Chapter goal")
@@ -139,6 +161,7 @@ class QuestionAnswer(BaseModel):
 
 class AnswerQuestionsRequest(BaseModel):
     """Request to answer pre-writing questions."""
+    language: Optional[str] = Field(None, description="Writing language override: zh/en or locale-like values")
     chapter: str = Field(..., description="Chapter ID")
     chapter_title: str = Field(..., description="Chapter title")
     chapter_goal: str = Field(..., description="Chapter goal")
@@ -150,7 +173,7 @@ class AnswerQuestionsRequest(BaseModel):
 @router.post("/projects/{project_id}/session/start")
 async def start_session(project_id: str, request: StartSessionRequest):
     """Start a new writing session."""
-    orchestrator = get_orchestrator(project_id)
+    orchestrator = get_orchestrator(project_id, request.language)
     return await orchestrator.start_session(
         project_id=project_id,
         chapter=request.chapter,
@@ -251,7 +274,7 @@ async def suggest_edit(project_id: str, request: EditSuggestRequest):
 @router.post("/projects/{project_id}/session/answer-questions")
 async def answer_questions(project_id: str, request: AnswerQuestionsRequest):
     """Continue session after answering pre-writing questions."""
-    orchestrator = get_orchestrator(project_id)
+    orchestrator = get_orchestrator(project_id, request.language)
     answers = [item.model_dump() for item in request.answers]
     return await orchestrator.answer_questions(
         project_id=project_id,
@@ -294,6 +317,7 @@ async def cancel_session(project_id: str):
 class AnalyzeRequest(BaseModel):
     """Request body for chapter analysis."""
 
+    language: Optional[str] = Field(None, description="Writing language override: zh/en or locale-like values")
     chapter: str = Field(..., description="Chapter ID")
     content: Optional[str] = Field(None, description="Draft content")
     chapter_title: Optional[str] = Field(None, description="Chapter title")
@@ -312,6 +336,7 @@ class AnalysisPayload(BaseModel):
 class SaveAnalysisRequest(BaseModel):
     """Request body for saving analysis output."""
 
+    language: Optional[str] = Field(None, description="Writing language override: zh/en or locale-like values")
     chapter: str = Field(..., description="Chapter ID")
     analysis: AnalysisPayload
     overwrite: bool = Field(False, description="Overwrite existing facts/cards")
@@ -320,12 +345,14 @@ class SaveAnalysisRequest(BaseModel):
 class AnalyzeSyncRequest(BaseModel):
     """Request body for analysis sync."""
 
+    language: Optional[str] = Field(None, description="Writing language override: zh/en or locale-like values")
     chapters: List[str] = Field(default_factory=list, description="Chapter IDs")
 
 
 class AnalyzeBatchRequest(BaseModel):
     """Request body for batch analysis."""
 
+    language: Optional[str] = Field(None, description="Writing language override: zh/en or locale-like values")
     chapters: List[str] = Field(default_factory=list, description="Chapter IDs")
 
 
@@ -339,6 +366,7 @@ class SaveAnalysisBatchItem(BaseModel):
 class SaveAnalysisBatchRequest(BaseModel):
     """Request body for saving analysis batch."""
 
+    language: Optional[str] = Field(None, description="Writing language override: zh/en or locale-like values")
     items: List[SaveAnalysisBatchItem] = Field(default_factory=list)
     overwrite: bool = Field(False, description="Overwrite existing facts/cards")
 
@@ -346,7 +374,7 @@ class SaveAnalysisBatchRequest(BaseModel):
 @router.post("/projects/{project_id}/session/analyze")
 async def analyze_chapter(project_id: str, request: AnalyzeRequest):
     """Analyze chapter content manually."""
-    orchestrator = get_orchestrator(project_id)
+    orchestrator = get_orchestrator(project_id, request.language)
     return await orchestrator.analyze_chapter(
         project_id=project_id,
         chapter=request.chapter,
@@ -358,7 +386,7 @@ async def analyze_chapter(project_id: str, request: AnalyzeRequest):
 @router.post("/projects/{project_id}/session/save-analysis")
 async def save_analysis(project_id: str, request: SaveAnalysisRequest):
     """Persist analysis output (summary, facts, cards)."""
-    orchestrator = get_orchestrator(project_id)
+    orchestrator = get_orchestrator(project_id, request.language)
     return await orchestrator.save_analysis(
         project_id=project_id,
         chapter=request.chapter,
@@ -370,21 +398,21 @@ async def save_analysis(project_id: str, request: SaveAnalysisRequest):
 @router.post("/projects/{project_id}/session/analyze-sync")
 async def analyze_sync(project_id: str, request: AnalyzeSyncRequest):
     """Batch analyze and overwrite summaries/facts/cards for selected chapters."""
-    orchestrator = get_orchestrator(project_id)
+    orchestrator = get_orchestrator(project_id, request.language)
     return await orchestrator.analyze_sync(project_id, request.chapters)
 
 
 @router.post("/projects/{project_id}/session/analyze-batch")
 async def analyze_batch(project_id: str, request: AnalyzeBatchRequest):
     """Batch analyze chapters and return analysis payload."""
-    orchestrator = get_orchestrator(project_id)
+    orchestrator = get_orchestrator(project_id, request.language)
     return await orchestrator.analyze_batch(project_id, request.chapters)
 
 
 @router.post("/projects/{project_id}/session/save-analysis-batch")
 async def save_analysis_batch(project_id: str, request: SaveAnalysisBatchRequest):
     """Persist analysis payload batch."""
-    orchestrator = get_orchestrator(project_id)
+    orchestrator = get_orchestrator(project_id, request.language)
     items = [
         {"chapter": item.chapter, "analysis": item.analysis.model_dump()}
         for item in request.items

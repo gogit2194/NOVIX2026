@@ -23,6 +23,7 @@ from app.schemas.card import CharacterCard, WorldCard, StyleCard
 from app.llm_gateway import get_gateway
 from app.agents import ArchivistAgent
 from app.dependencies import get_card_storage, get_canon_storage, get_draft_storage
+from app.utils.language import normalize_language
 from app.utils.path_safety import sanitize_id
 
 router = APIRouter(prefix="/projects/{project_id}/cards", tags=["cards"])
@@ -37,7 +38,28 @@ class StyleExtractRequest(BaseModel):
         content (str): 样本文本用于风格提取 / Sample text for style extraction.
     """
 
+    language: Optional[str] = Field(
+        None,
+        description="Writing language override: zh/en or locale-like values",
+    )
     content: str = Field(..., description="Sample text for style extraction")
+
+
+async def _resolve_project_language(project_id: str, request_language: Optional[str]) -> str:
+    explicit = normalize_language(request_language, default="")
+    if explicit in {"zh", "en"}:
+        return explicit
+
+    try:
+        from pathlib import Path
+
+        project_yaml = Path(card_storage.data_dir) / project_id / "project.yaml"
+        if not project_yaml.exists():
+            return "zh"
+        data = await card_storage.read_yaml(project_yaml)
+        return normalize_language((data or {}).get("language"), default="zh")
+    except Exception:
+        return "zh"
 
 
 @router.get("/characters")
@@ -258,12 +280,14 @@ async def extract_style_card(project_id: str, request: StyleExtractRequest):
     if not content:
         raise HTTPException(status_code=400, detail="Content is required")
 
+    language = await _resolve_project_language(project_id, request.language)
     gateway = get_gateway()
     archivist = ArchivistAgent(
         gateway,
         card_storage,
         get_canon_storage(),
         get_draft_storage(),
+        language=language,
     )
     style_text = await archivist.extract_style_profile(content)
     return {"style": style_text}

@@ -44,9 +44,11 @@ import { ChevronRight, ChevronDown, Trash2, ArrowUp, ArrowDown } from 'lucide-re
 import { draftsAPI, volumesAPI } from '../../api';
 import { useIDE } from '../../context/IDEContext';
 import { cn } from '../ui/core';
+import { useLocale } from '../../i18n';
 
 export default function VolumeTree({ projectId, onChapterSelect, selectedChapter, reorderMode = false }) {
   const { state, dispatch } = useIDE();
+  const { t } = useLocale();
 
   // 数据获取
   const { data: volumesData } = useSWR(
@@ -153,9 +155,10 @@ export default function VolumeTree({ projectId, onChapterSelect, selectedChapter
     const isActive = state.activeDocument?.type === 'chapter' && String(state.activeDocument?.id) === String(chapterId);
     const hasUnsaved = Boolean(state.unsavedChanges) && isActive;
     const displayTitle = title ? `（${title}）` : '';
-    const extraWarn = hasUnsaved ? '\n\n注意：当前章节存在未保存内容，删除后将永久丢失。' : '';
+    const mainMsg = t('chapter.deleteConfirmSimple').replace('{id}', chapterId).replace('{title}', displayTitle);
+    const extraWarn = hasUnsaved ? '\n\n' + t('common.unsavedNote') : '';
 
-    const ok = window.confirm(`确定要删除章节 ${chapterId}${displayTitle} 吗？此操作不可撤销。${extraWarn}`);
+    const ok = window.confirm(mainMsg + extraWarn);
     if (!ok) return;
 
     try {
@@ -166,7 +169,7 @@ export default function VolumeTree({ projectId, onChapterSelect, selectedChapter
       await mutate(`/drafts/${projectId}/chapters`);
       await mutate(`/drafts/${projectId}/summaries`);
     } catch (e) {
-      window.alert('删除失败：' + (e?.message || '未知错误'));
+      window.alert(t('chapter.deleteFailed').replace('{message}', e?.message || t('common.unknown')));
     }
   };
 
@@ -192,7 +195,7 @@ export default function VolumeTree({ projectId, onChapterSelect, selectedChapter
       await mutate(`/drafts/${projectId}/chapters`);
       await mutate(`/drafts/${projectId}/summaries`);
     } catch (e) {
-      window.alert('调整顺序失败：' + (e?.response?.data?.detail || e?.message || '未知错误'));
+      window.alert(t('chapter.reorderFailed').replace('{message}', e?.response?.data?.detail || e?.message || t('common.unknown')));
     }
   };
 
@@ -245,7 +248,7 @@ export default function VolumeTree({ projectId, onChapterSelect, selectedChapter
                     >
                       <span className="truncate flex-1">
                         <span className="opacity-70 font-mono text-xs mr-2">{chapter.chapter}</span>
-                        {chapter.title || '未命名'}
+                        {chapter.title || t('chapter.noTitle')}
                       </span>
 
                       {/* 右侧元信息 */}
@@ -257,8 +260,8 @@ export default function VolumeTree({ projectId, onChapterSelect, selectedChapter
                         <>
                           <button
                             type="button"
-                            title="上移"
-                            aria-label="上移"
+                            title={t('common.moveUp')}
+                            aria-label={t('common.moveUp')}
                             disabled={idx === 0}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -275,8 +278,8 @@ export default function VolumeTree({ projectId, onChapterSelect, selectedChapter
 
                           <button
                             type="button"
-                            title="下移"
-                            aria-label="下移"
+                            title={t('common.moveDown')}
+                            aria-label={t('common.moveDown')}
                             disabled={idx === chapters.length - 1}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -295,8 +298,8 @@ export default function VolumeTree({ projectId, onChapterSelect, selectedChapter
 
                       <button
                         type="button"
-                        title="删除章节"
-                        aria-label="删除章节"
+                        title={t('chapter.delete')}
+                        aria-label={t('chapter.delete')}
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDeleteChapter(chapter.chapter, chapter.title);
@@ -316,7 +319,7 @@ export default function VolumeTree({ projectId, onChapterSelect, selectedChapter
                 {/* 分卷空状态 */}
                 {chapters.length === 0 && (
                   <div className="vscode-tree-item pl-8 text-xs opacity-40 italic cursor-default hover:bg-transparent">
-                    暂无章节
+                    {t('chapter.noChapters')}
                   </div>
                 )}
               </div>

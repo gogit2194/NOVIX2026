@@ -42,6 +42,7 @@
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Check, X, Plus, Minus } from 'lucide-react';
+import { useLocale } from '../../i18n';
 
 const InlineDiffEditor = ({
     originalContent = "",    // 原始全文
@@ -52,6 +53,7 @@ const InlineDiffEditor = ({
     onReject,                // 拒绝修改
     className = ""
 }) => {
+    const { t } = useLocale();
     // 构建内联合并视图
     const mergedView = useMemo(() => {
         const originalLines = originalContent.split('\n');
@@ -147,16 +149,16 @@ const InlineDiffEditor = ({
             >
                 <div className="flex items-center gap-4">
                     <span className="text-sm font-bold text-[var(--vscode-fg)]">
-                        ✨ AI 修改建议
+                        {t('diff.aiSuggestion')}
                     </span>
                     <div className="flex items-center gap-3 text-xs">
                         <span className="flex items-center gap-1 text-green-600 font-medium">
                             <Plus size={14} />
-                            <span>{stats.additions || 0} 新增</span>
+                            <span>{stats.additions || 0} {t('diff.added')}</span>
                         </span>
                         <span className="flex items-center gap-1 text-red-500 font-medium">
                             <Minus size={14} />
-                            <span>{stats.deletions || 0} 删除</span>
+                            <span>{stats.deletions || 0} {t('diff.deleted')}</span>
                         </span>
                     </div>
                 </div>
@@ -167,14 +169,14 @@ const InlineDiffEditor = ({
                         className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-[6px] border border-red-200 transition-colors"
                     >
                         <X size={16} />
-                        拒绝修改
+                        {t('diff.rejectChanges')}
                     </button>
                     <button
                         onClick={onAccept}
                         className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-[6px] transition-colors"
                     >
                         <Check size={16} />
-                        接受修改
+                        {t('diff.acceptChanges')}
                     </button>
                 </div>
             </motion.div>
@@ -220,8 +222,7 @@ const InlineDiffEditor = ({
 
             {/* 底部提示 */}
             <div className="px-4 py-2 border-t border-[var(--vscode-sidebar-border)] bg-[var(--vscode-sidebar-bg)] text-xs text-[var(--vscode-fg-subtle)] text-center">
-                💡 <span className="text-red-600 bg-red-50 px-1 rounded line-through">红色</span> 为删除内容，
-                <span className="text-green-700 bg-green-50 px-1 rounded">绿色</span> 为新增内容
+                {t('diff.legendPrefix')}<span className="text-red-600 bg-red-50 px-1 rounded line-through">{t('diff.legendRed')}</span>{t('diff.legendMid')}<span className="text-green-700 bg-green-50 px-1 rounded">{t('diff.legendGreen')}</span>{t('diff.legendSuffix')}
             </div>
         </div>
     );

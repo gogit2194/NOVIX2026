@@ -18,7 +18,7 @@ from app.utils.logger import get_logger
 from app.utils.llm_output import parse_json_payload
 
 from app.agents.base import BaseAgent
-from app.prompts import WRITER_SYSTEM_PROMPT, writer_draft_prompt, writer_questions_prompt, writer_research_plan_prompt
+from app.prompts import get_writer_system_prompt, writer_draft_prompt, writer_questions_prompt, writer_research_plan_prompt
 from app.schemas.draft import SceneBrief
 from app.schemas.card import StyleCard
 
@@ -49,11 +49,18 @@ class WriterAgent(BaseAgent):
         DEFAULT_QUESTIONS: Pre-writing questions for user confirmation.
     """
 
-    DEFAULT_QUESTIONS = [
-        {"type": "plot_point", "text": "为达成本章目标，尚缺的剧情/世界信息是什么？"},
-        {"type": "character_change", "text": "哪些主角的动机或情绪需再确认，避免违背既有事实？"},
-        {"type": "detail_gap", "text": "还有哪些具体细节（地点/时间/物件）需要确定后再写？"},
-    ]
+    DEFAULT_QUESTIONS = {
+        "zh": [
+            {"type": "plot_point", "text": "为达成本章目标，尚缺的剧情/世界信息是什么？"},
+            {"type": "character_change", "text": "哪些主角的动机或情绪需再确认，避免违背既有事实？"},
+            {"type": "detail_gap", "text": "还有哪些具体细节（地点/时间/物件）需要确定后再写？"},
+        ],
+        "en": [
+            {"type": "plot_point", "text": "What plot or world-building information is still needed to achieve this chapter's goal?"},
+            {"type": "character_change", "text": "Which characters' motivations or emotions need clarification to avoid contradicting established facts?"},
+            {"type": "detail_gap", "text": "What specific details (setting, timeline, objects) should be settled before writing?"},
+        ],
+    }
 
     def get_agent_name(self) -> str:
         """获取智能体标识 - 返回 'writer'"""
@@ -61,7 +68,7 @@ class WriterAgent(BaseAgent):
 
     def get_system_prompt(self) -> str:
         """获取系统提示词 - 撰稿人专用"""
-        return WRITER_SYSTEM_PROMPT
+        return get_writer_system_prompt(language=self.language)
 
     async def execute(self, project_id: str, chapter: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -214,7 +221,7 @@ class WriterAgent(BaseAgent):
                         if events:
                             block.append("事件：" + "；".join([str(e) for e in events[:4]]))
                         context_items.append("\n".join(block))
-        prompt = writer_questions_prompt(context_items)
+        prompt = writer_questions_prompt(context_items, language=self.language)
 
         messages = self.build_messages(
             system_prompt=prompt.system,
@@ -239,7 +246,7 @@ class WriterAgent(BaseAgent):
             if cleaned:
                 return cleaned
 
-        return list(self.DEFAULT_QUESTIONS)
+        return list(self.DEFAULT_QUESTIONS.get(self.language, self.DEFAULT_QUESTIONS["zh"]))
 
     async def generate_research_plan(
         self,
@@ -275,6 +282,7 @@ class WriterAgent(BaseAgent):
             gap_texts=gap_texts,
             evidence_stats=evidence_stats,
             round_index=round_index,
+            language=self.language,
         )
 
         messages = self.build_messages(
@@ -628,6 +636,7 @@ FORBIDDEN:
             chapter_goal=chapter_goal or "",
             brief_goal=brief_goal or "",
             target_word_count=target_word_count,
+            language=self.language,
         )
 
         return self.build_messages(

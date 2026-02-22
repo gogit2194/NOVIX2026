@@ -16,17 +16,12 @@ import { Cpu, Plus, Edit2, Trash2, Bot, Save, Server, Shield, Box, Globe, Rotate
 import { Card, Button } from '../components/ui/core';
 import { configAPI } from '../api';
 import LLMProfileModal from '../components/LLMProfileModal';
+import { useLocale } from '../i18n';
 
-// SWR 获取器 / SWR fetcher
 const fetcher = (fn) => fn().then((res) => res.data);
 
 /**
  * 骨架屏加载动画 / Skeleton Loader for Cards
- *
- * 显示卡片加载中的占位符动画。
- *
- * @component
- * @returns {JSX.Element} 骨架屏
  */
 const ProfileCardSkeleton = () => (
     <div className="bg-[var(--vscode-bg)] border border-[var(--vscode-sidebar-border)] rounded-[6px] p-5 animate-pulse">
@@ -51,14 +46,12 @@ const ProfileCardSkeleton = () => (
  * 负责模型配置卡与智能体分配配置，保持现有数据流与交互。
  */
 function Agents() {
-    // SWR 数据获取
+    const { t } = useLocale();
+
     const { data: profiles = [], isLoading: loadingProfiles } = useSWR(
         'llm-profiles',
         () => fetcher(configAPI.getProfiles),
-        {
-            revalidateOnFocus: false,
-            dedupingInterval: 2000
-        }
+        { revalidateOnFocus: false, dedupingInterval: 2000 }
     );
 
     const { data: assignments = {}, isLoading: loadingAssignments } = useSWR(
@@ -72,7 +65,6 @@ function Agents() {
     const [editingProfile, setEditingProfile] = useState(null);
     const [savingAssignments, setSavingAssignments] = useState(false);
 
-    // 合并远端与本地分配
     const currentAssignments = { ...assignments, ...localAssignments };
 
     const handleEditProfile = (profile) => {
@@ -92,11 +84,11 @@ function Agents() {
     };
 
     const handleDeleteProfile = async (id) => {
-        if (!window.confirm("确定要删除这张配置卡片吗？此操作不可撤销。")) return;
+        if (!window.confirm(t('agents.deleteProfileConfirm'))) return;
         try {
             await deleteProfileAndRefresh(id);
         } catch (e) {
-            alert("删除卡片失败");
+            alert(t('agents.deleteProfileFailed'));
         }
     };
 
@@ -106,7 +98,7 @@ function Agents() {
             setIsModalOpen(false);
             mutate('llm-profiles');
         } catch (e) {
-            alert("保存卡片失败");
+            alert(t('agents.saveProfileFailed'));
         }
     };
 
@@ -116,9 +108,9 @@ function Agents() {
             await configAPI.updateAssignments(currentAssignments);
             mutate('agent-assignments');
             setLocalAssignments({});
-            alert("智能体分配已保存。");
+            alert(t('agents.assignmentsSaved'));
         } catch (e) {
-            alert("保存分配失败");
+            alert(t('agents.saveAssignmentsFailed'));
         } finally {
             setSavingAssignments(false);
         }
@@ -136,6 +128,12 @@ function Agents() {
 
     const loading = loadingProfiles || loadingAssignments;
 
+    const agentDefs = [
+        { id: 'archivist', label: t('agents.agentRoles.archivistLabel'), desc: t('agents.agentRoles.archivistDesc') },
+        { id: 'writer',    label: t('agents.agentRoles.writerLabel'),    desc: t('agents.agentRoles.writerDesc') },
+        { id: 'editor',    label: t('agents.agentRoles.editorLabel'),    desc: t('agents.agentRoles.editorDesc') },
+    ];
+
     return (
         <div className="anti-theme h-full overflow-y-auto p-8 bg-[var(--vscode-bg)] text-[var(--vscode-fg)]">
             <div className="max-w-6xl mx-auto space-y-10 pb-20">
@@ -149,12 +147,12 @@ function Agents() {
                 >
                     <div>
                         <h2 className="text-2xl font-serif font-bold text-ink-900 tracking-tight flex items-center gap-3">
-                            <Bot className="text-[var(--vscode-focus-border)]" /> 模型管理
+                            <Bot className="text-[var(--vscode-focus-border)]" /> {t('agents.pageTitle')}
                         </h2>
-                        <p className="text-ink-500 mt-2">管理您的大语言模型配置卡片，并将其分配给特定的智能体角色。</p>
+                        <p className="text-ink-500 mt-2">{t('agents.pageSubtitle')}</p>
                     </div>
                     <Button variant="ghost" onClick={() => mutate('llm-profiles')} disabled={loading}>
-                        <RotateCcw size={16} className={loading ? 'animate-spin mr-2' : 'mr-2'} /> 刷新
+                        <RotateCcw size={16} className={loading ? 'animate-spin mr-2' : 'mr-2'} /> {t('agents.refresh')}
                     </Button>
                 </motion.div>
 
@@ -166,14 +164,13 @@ function Agents() {
                     className="space-y-4"
                 >
                     <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-bold text-ink-800">1. 模型配置卡片</h3>
+                        <h3 className="text-lg font-bold text-ink-800">{t('agents.profilesSection')}</h3>
                         <Button onClick={handleCreateProfile} className="shadow-none">
-                            <Plus size={16} className="mr-2" /> 新建卡片
+                            <Plus size={16} className="mr-2" /> {t('agents.newProfile')}
                         </Button>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {/* 骨架屏 */}
                         {loadingProfiles && (
                             <>
                                 <ProfileCardSkeleton />
@@ -182,7 +179,6 @@ function Agents() {
                             </>
                         )}
 
-                        {/* 配置卡片 */}
                         <AnimatePresence>
                             {!loadingProfiles && profiles.map((profile, index) => {
                                 const Icon = getProviderIcon(profile.provider);
@@ -227,11 +223,11 @@ function Agents() {
 
                                         <div className="space-y-1 text-sm text-ink-600">
                                             <div className="flex justify-between">
-                                                <span className="text-ink-400">模型：</span>
-                                                <span className="font-mono bg-[var(--vscode-list-hover)] px-1 rounded">{profile.model || '默认'}</span>
+                                                <span className="text-ink-400">{t('agents.modelLabel')}</span>
+                                                <span className="font-mono bg-[var(--vscode-list-hover)] px-1 rounded">{profile.model || t('agents.modelDefault')}</span>
                                             </div>
                                             <div className="flex justify-between">
-                                                <span className="text-ink-400">温度：</span>
+                                                <span className="text-ink-400">{t('agents.tempLabel')}</span>
                                                 <span>{profile.temperature}</span>
                                             </div>
                                         </div>
@@ -240,15 +236,14 @@ function Agents() {
                             })}
                         </AnimatePresence>
 
-                        {/* 空状态 */}
                         {!loadingProfiles && profiles.length === 0 && (
                             <motion.div
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 className="col-span-full py-12 text-center border border-dashed border-[var(--vscode-sidebar-border)] rounded-[6px] bg-[var(--vscode-bg)]"
                             >
-                                <p className="text-ink-400">暂无配置卡片。</p>
-                                <Button variant="link" onClick={handleCreateProfile}>创建第一张卡片</Button>
+                                <p className="text-ink-400">{t('agents.noProfiles')}</p>
+                                <Button variant="link" onClick={handleCreateProfile}>{t('agents.createFirst')}</Button>
                             </motion.div>
                         )}
                     </div>
@@ -261,22 +256,18 @@ function Agents() {
                     transition={{ delay: 0.4, duration: 0.5 }}
                     className="space-y-4"
                 >
-                    <h3 className="text-lg font-bold text-ink-800">2. 智能体角色分配</h3>
+                    <h3 className="text-lg font-bold text-ink-800">{t('agents.assignmentsSection')}</h3>
                     <Card className="bg-[var(--vscode-bg)] border border-[var(--vscode-sidebar-border)] overflow-hidden">
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="bg-[var(--vscode-sidebar-bg)] border-b border-[var(--vscode-sidebar-border)] text-xs font-semibold text-ink-500 tracking-wider">
-                                    <th className="p-4">智能体角色</th>
-                                    <th className="p-4">指定配置卡片</th>
-                                    <th className="p-4">职责描述</th>
+                                    <th className="p-4">{t('agents.tableHeaders.role')}</th>
+                                    <th className="p-4">{t('agents.tableHeaders.profile')}</th>
+                                    <th className="p-4">{t('agents.tableHeaders.desc')}</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-[var(--vscode-sidebar-border)]">
-                                {[
-                                    { id: 'archivist', label: '档案员（Archivist）', desc: '整理设定资料，构建上下文包，为主笔提供必要信息。' },
-                                    { id: 'writer', label: '主笔（Writer）', desc: '流式撰写章节正文，支持逐字输出。' },
-                                    { id: 'editor', label: '编辑（Editor）', desc: '根据用户反馈修改草稿，生成 Diff 可视化修改。' },
-                                ].map((agent, index) => (
+                                {agentDefs.map((agent, index) => (
                                     <motion.tr
                                         key={agent.id}
                                         initial={{ opacity: 0, x: -20 }}
@@ -295,7 +286,7 @@ function Agents() {
                                                     onChange={(e) => setLocalAssignments({ ...localAssignments, [agent.id]: e.target.value })}
                                                     className="w-full md:w-64 px-3 py-2 border border-[var(--vscode-input-border)] rounded-[6px] bg-[var(--vscode-input-bg)] text-ink-900 text-sm focus:outline-none focus:border-[var(--vscode-focus-border)] focus:ring-2 focus:ring-[var(--vscode-focus-border)] cursor-pointer transition-colors hover:border-[var(--vscode-focus-border)]"
                                                 >
-                                                    <option value="">-- 选择卡片 --</option>
+                                                    <option value="">{t('agents.selectProfile')}</option>
                                                     {profiles.map(p => (
                                                         <option key={p.id} value={p.id}>{p.name} ({p.model})</option>
                                                     ))}
@@ -316,7 +307,7 @@ function Agents() {
                                 className="shadow-none"
                             >
                                 {savingAssignments ? <RotateCcw className="animate-spin mr-2" /> : <Save className="mr-2" />}
-                                保存分配设置
+                                {savingAssignments ? t('agents.savingAssignments') : t('agents.saveAssignments')}
                             </Button>
                         </div>
                     </Card>
@@ -324,7 +315,6 @@ function Agents() {
 
             </div>
 
-            {/* Modal with Animation */}
             <AnimatePresence>
                 {isModalOpen && (
                     <LLMProfileModal

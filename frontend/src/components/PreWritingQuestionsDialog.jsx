@@ -13,6 +13,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Card, Input } from './ui/core';
+import { useLocale } from '../i18n';
 
 /**
  * 写作前问题确认对话框 - 收集创意指导与关键设定
@@ -47,11 +48,16 @@ export default function PreWritingQuestionsDialog({
     questions = [],
     onConfirm,
     onSkip,
-    title = '写作前确认',
-    subtitle = '先回答几个关键问题，帮助主笔精准开写。',
-    confirmText = '开始撰写',
-    skipText = '跳过',
+    title,
+    subtitle,
+    confirmText,
+    skipText,
 }) {
+    const { t } = useLocale();
+    const resolvedTitle = title ?? t('preWriting.title');
+    const resolvedSubtitle = subtitle ?? t('preWriting.subtitle');
+    const resolvedConfirmText = confirmText ?? t('preWriting.confirmText');
+    const resolvedSkipText = skipText ?? t('preWriting.skipText');
     const [answers, setAnswers] = useState([]);
 
     useEffect(() => {
@@ -97,9 +103,9 @@ export default function PreWritingQuestionsDialog({
                     >
                         <Card className="w-full max-w-2xl p-6 space-y-5">
                             <div className="space-y-1">
-                                <h2 className="text-xl font-bold text-[var(--vscode-fg)]">{title}</h2>
+                                <h2 className="text-xl font-bold text-[var(--vscode-fg)]">{resolvedTitle}</h2>
                                 <p className="text-sm text-[var(--vscode-fg-subtle)]">
-                                    {subtitle}
+                                    {resolvedSubtitle}
                                 </p>
                             </div>
 
@@ -108,12 +114,12 @@ export default function PreWritingQuestionsDialog({
                                     <div key={`${q.type || 'q'}-${index}`} className="space-y-2">
                                         <div className="text-sm font-semibold text-[var(--vscode-fg)]">{q.text}</div>
                                         {q.reason && (
-                                            <div className="text-xs text-[var(--vscode-fg-subtle)]">原因：{q.reason}</div>
+                                            <div className="text-xs text-[var(--vscode-fg-subtle)]">{t('preWriting.reason')}：{q.reason}</div>
                                         )}
                                         <Input
                                             value={answers[index] || ''}
                                             onChange={(e) => handleChange(index, e.target.value)}
-                                            placeholder="可简要回答或留空"
+                                            placeholder={t('preWriting.answerPlaceholder')}
                                             className="bg-[var(--vscode-input-bg)]"
                                         />
                                     </div>
@@ -121,8 +127,8 @@ export default function PreWritingQuestionsDialog({
                             </div>
 
                             <div className="flex justify-end gap-3 pt-2">
-                                <Button variant="ghost" onClick={onSkip}>{skipText}</Button>
-                                <Button onClick={handleConfirm}>{confirmText}</Button>
+                                <Button variant="ghost" onClick={onSkip}>{resolvedSkipText}</Button>
+                                <Button onClick={handleConfirm}>{resolvedConfirmText}</Button>
                             </div>
                         </Card>
                     </motion.div>

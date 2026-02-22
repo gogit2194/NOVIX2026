@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useIDE } from '../../context/IDEContext';
 import useSWR, { mutate } from 'swr';
@@ -6,6 +6,7 @@ import { projectsAPI } from '../../api';
 import { Bot, ChevronDown, Folder, Plus, Check, Trash2, Home } from 'lucide-react';
 import { cn } from '../ui/core';
 import logger from '../../utils/logger';
+import { useLocale } from '../../i18n';
 
 const fetcher = (fn) => fn().then((res) => res.data);
 
@@ -17,11 +18,14 @@ export function TitleBar({ projectName, chapterTitle, rightActions, aiHint }) {
   const navigate = useNavigate();
   const { projectId } = useParams();
   const { state, dispatch } = useIDE();
+  const { t, locale, setLocale } = useLocale();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [createMode, setCreateMode] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [creating, setCreating] = useState(false);
   const menuRef = useRef(null);
+  const langMenuRef = useRef(null);
 
   const { data: projects = [] } = useSWR(
     'all-projects',
@@ -35,10 +39,29 @@ export function TitleBar({ projectName, chapterTitle, rightActions, aiHint }) {
         setMenuOpen(false);
         setCreateMode(false);
       }
+      if (langMenuRef.current && !langMenuRef.current.contains(e.target)) {
+        setLangMenuOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const languageOptions = [
+    { locale: 'zh-CN', label: t('titleBar.uiLanguageZh') },
+    { locale: 'en-US', label: t('titleBar.uiLanguageEn') },
+  ];
+
+  const currentLanguageLabel =
+    languageOptions.find((opt) => opt.locale === locale)?.label || String(locale || 'zh-CN');
+
+  const handleSwitchLanguage = (nextLocale) => {
+    if (!nextLocale || nextLocale === locale) return;
+    const targetLabel = languageOptions.find((opt) => opt.locale === nextLocale)?.label || nextLocale;
+    if (!confirm(t('titleBar.switchLanguageConfirm', { target: targetLabel }))) return;
+    setLocale(nextLocale);
+    setLangMenuOpen(false);
+  };
 
   const handleCreateProject = async () => {
     if (!newProjectName.trim()) return;
@@ -59,7 +82,7 @@ export function TitleBar({ projectName, chapterTitle, rightActions, aiHint }) {
 
   const handleDeleteProject = async (id, e) => {
     e.stopPropagation();
-    if (!confirm('确定要删除此项目吗？此操作不可撤销。')) return;
+    if (!confirm(t('titleBar.deleteProjectConfirm'))) return;
     try {
       await projectsAPI.delete(id);
       mutate('all-projects');
@@ -77,14 +100,17 @@ export function TitleBar({ projectName, chapterTitle, rightActions, aiHint }) {
         <button
           onClick={() => navigate('/')}
           className="flex flex-col leading-none hover:text-[var(--vscode-fg)] transition-colors"
-          title="返回首页"
+          title={t('titleBar.backToHome')}
         >
           <span className="brand-logo text-xl text-[var(--vscode-fg)]">文枢</span>
         </button>
 
         <div className="relative" ref={menuRef}>
           <button
-            onClick={() => setMenuOpen(!menuOpen)}
+            onClick={() => {
+              setLangMenuOpen(false);
+              setMenuOpen(!menuOpen);
+            }}
             className={cn(
               'flex items-center gap-2 px-3 py-1.5 rounded-[6px] text-sm transition-colors',
               menuOpen
@@ -93,13 +119,13 @@ export function TitleBar({ projectName, chapterTitle, rightActions, aiHint }) {
             )}
           >
             <Folder size={14} />
-            <span className="max-w-[120px] truncate">{projectName || '选择项目'}</span>
+            <span className="max-w-[120px] truncate">{projectName || t('titleBar.selectProject')}</span>
             <ChevronDown size={12} className={cn('transition-transform', menuOpen && 'rotate-180')} />
           </button>
 
           {menuOpen && (
             <div className="absolute left-0 top-full mt-1 w-64 glass-panel border border-[var(--vscode-sidebar-border)] rounded-[6px] py-1 z-50 soft-dropdown">
-              <div className="px-3 py-2 text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase">我的项目</div>
+              <div className="px-3 py-2 text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase">{t('titleBar.myProjects')}</div>
 
               <div className="max-h-48 overflow-y-auto">
                 {projects.map((project) => (
@@ -119,7 +145,7 @@ export function TitleBar({ projectName, chapterTitle, rightActions, aiHint }) {
                     <button
                       onClick={(e) => handleDeleteProject(project.id, e)}
                       className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-50 rounded text-[var(--vscode-fg-subtle)] hover:text-red-500 transition-all flex-shrink-0"
-                      title="删除项目"
+                      title={t('titleBar.deleteProject')}
                     >
                       <Trash2 size={12} />
                     </button>
@@ -136,7 +162,7 @@ export function TitleBar({ projectName, chapterTitle, rightActions, aiHint }) {
                     value={newProjectName}
                     onChange={(e) => setNewProjectName(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleCreateProject()}
-                    placeholder="输入项目名称..."
+                    placeholder={t('titleBar.newProjectPlaceholder')}
                     className="w-full text-xs py-1.5 px-2 border border-[var(--vscode-input-border)] rounded-[6px] focus:border-[var(--vscode-focus-border)] focus:ring-1 focus:ring-[var(--vscode-focus-border)] outline-none bg-[var(--vscode-input-bg)] text-[var(--vscode-fg)]"
                     autoFocus
                   />
@@ -146,7 +172,7 @@ export function TitleBar({ projectName, chapterTitle, rightActions, aiHint }) {
                       disabled={creating || !newProjectName.trim()}
                       className="flex-1 py-1.5 bg-[var(--vscode-list-active)] text-[var(--vscode-list-active-fg)] text-xs rounded-[6px] hover:opacity-90 disabled:opacity-50"
                     >
-                      {creating ? '创建中...' : '创建'}
+                      {creating ? t('titleBar.creating') : t('titleBar.createBtn')}
                     </button>
                     <button
                       onClick={() => {
@@ -155,7 +181,7 @@ export function TitleBar({ projectName, chapterTitle, rightActions, aiHint }) {
                       }}
                       className="py-1.5 px-3 text-xs text-[var(--vscode-fg-subtle)] hover:bg-[var(--vscode-list-hover)] rounded-[6px]"
                     >
-                      取消
+                      {t('titleBar.cancelBtn')}
                     </button>
                   </div>
                 </div>
@@ -165,7 +191,7 @@ export function TitleBar({ projectName, chapterTitle, rightActions, aiHint }) {
                   className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--vscode-fg)] hover:bg-[var(--vscode-list-hover)] transition-colors"
                 >
                   <Plus size={14} className="text-[var(--vscode-fg-subtle)]" />
-                  <span>新建项目...</span>
+                  <span>{t('titleBar.newProject')}</span>
                 </button>
               )}
 
@@ -177,8 +203,44 @@ export function TitleBar({ projectName, chapterTitle, rightActions, aiHint }) {
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--vscode-fg)] hover:bg-[var(--vscode-list-hover)] transition-colors"
               >
                 <Home size={14} className="text-[var(--vscode-fg-subtle)]" />
-                <span>返回首页</span>
+                <span>{t('titleBar.home')}</span>
               </button>
+            </div>
+          )}
+        </div>
+
+        <div className="relative" ref={langMenuRef}>
+          <button
+            onClick={() => {
+              setMenuOpen(false);
+              setCreateMode(false);
+              setLangMenuOpen((prev) => !prev);
+            }}
+            className={cn(
+              'flex items-center gap-2 px-3 py-1.5 rounded-[6px] text-sm transition-colors',
+              langMenuOpen
+                ? 'bg-[var(--vscode-list-active)] text-[var(--vscode-list-active-fg)]'
+                : 'text-[var(--vscode-fg-subtle)] hover:bg-[var(--vscode-list-hover)] hover:text-[var(--vscode-fg)]'
+            )}
+            title={t('titleBar.uiLanguage')}
+            aria-label={t('titleBar.uiLanguage')}
+          >
+            <span className="text-xs">{currentLanguageLabel}</span>
+            <ChevronDown size={12} className={cn('transition-transform', langMenuOpen && 'rotate-180')} />
+          </button>
+
+          {langMenuOpen && (
+            <div className="absolute left-0 top-full mt-1 w-40 glass-panel border border-[var(--vscode-sidebar-border)] rounded-[6px] py-1 z-50 soft-dropdown">
+              {languageOptions.map((opt) => (
+                <button
+                  key={opt.locale}
+                  onClick={() => handleSwitchLanguage(opt.locale)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--vscode-fg)] hover:bg-[var(--vscode-list-hover)] transition-colors"
+                >
+                  <span className="flex-1 text-left">{opt.label}</span>
+                  {opt.locale === locale && <Check size={14} className="text-[var(--vscode-focus-border)] flex-shrink-0" />}
+                </button>
+              ))}
             </div>
           )}
         </div>
@@ -204,8 +266,8 @@ export function TitleBar({ projectName, chapterTitle, rightActions, aiHint }) {
               ? 'bg-[var(--vscode-list-active)] text-[var(--vscode-list-active-fg)]'
               : 'text-[var(--vscode-fg-subtle)] hover:bg-[var(--vscode-list-hover)] hover:text-[var(--vscode-fg)]'
           )}
-          title={state.rightPanelVisible ? '关闭 AI 助手' : '打开 AI 助手'}
-          aria-label={state.rightPanelVisible ? '关闭 AI 助手' : '打开 AI 助手'}
+          title={state.rightPanelVisible ? t('titleBar.closeAiPanel') : t('titleBar.openAiPanel')}
+          aria-label={state.rightPanelVisible ? t('titleBar.closeAiPanel') : t('titleBar.openAiPanel')}
         >
           <Bot size={14} />
         </button>

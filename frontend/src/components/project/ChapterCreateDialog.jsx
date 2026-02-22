@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '../ui/core';
+import { useLocale } from '../../i18n';
 
 /**
  * ChapterCreateDialog - 新建章节弹窗
@@ -14,6 +15,7 @@ export function ChapterCreateDialog({
     volumes = [],
     defaultVolumeId = 'V1',
 }) {
+    const { t } = useLocale();
     const [chapterType, setChapterType] = useState('normal');
     const [selectedVolume, setSelectedVolume] = useState('V1');
     const [insertAfter, setInsertAfter] = useState('');
@@ -22,7 +24,7 @@ export function ChapterCreateDialog({
     const [title, setTitle] = useState('');
 
     // 逻辑保持不变
-    const availableVolumes = volumes.length ? volumes : [{ id: 'V1', title: '第一卷' }];
+    const availableVolumes = volumes.length ? volumes : [{ id: 'V1', title: t('volume.defaultV1') }];
 
     const normalizeToVolume = (chapterId, volumeId) => {
         const trimmed = (chapterId || '').trim().toUpperCase();
@@ -105,35 +107,35 @@ export function ChapterCreateDialog({
             <div className="vscode-command-palette anti-theme z-[101]">
                 <div className="bg-[var(--vscode-input-bg)] p-1">
                     <div className="px-2 py-1.5 text-xs text-[var(--vscode-fg-subtle)] font-bold uppercase tracking-wider border-b border-[var(--vscode-input-border)] mb-2">
-                        新建章节
+                        {t('chapter.newChapterDialog')}
                     </div>
 
                     <div className="space-y-3 px-2 pb-3">
                         {/* 类型选择 */}
                         <div className="flex gap-1 bg-[var(--vscode-sidebar-bg)] p-1 rounded-[var(--radius-sm)]">
                             {[
-                                { id: 'normal', label: '正文' },
-                                { id: 'extra', label: '番外' },
-                                { id: 'interlude', label: '幕间' }
-                            ].map(t => (
+                                { id: 'normal', label: t('chapter.typeNormal') },
+                                { id: 'extra', label: t('chapter.typeExtra') },
+                                { id: 'interlude', label: t('chapter.typeInterlude') }
+                            ].map(tab => (
                                 <button
-                                    key={t.id}
-                                    onClick={() => setChapterType(t.id)}
+                                    key={tab.id}
+                                    onClick={() => setChapterType(tab.id)}
                                     className={cn(
                                         "flex-1 text-[11px] py-1 rounded-[var(--radius-sm)] transition-none",
-                                        chapterType === t.id
+                                        chapterType === tab.id
                                             ? "bg-[var(--vscode-bg)] text-[var(--vscode-fg)] shadow-sm font-medium"
                                             : "text-[var(--vscode-fg-subtle)] hover:text-[var(--vscode-fg)]"
                                     )}
                                 >
-                                    {t.label}
+                                    {tab.label}
                                 </button>
                             ))}
                         </div>
 
                         {/* 分卷选择 */}
                         <div className="grid grid-cols-[80px_1fr] items-center gap-2">
-                            <label className="text-[11px] text-right text-[var(--vscode-fg-subtle)]">分卷：</label>
+                            <label className="text-[11px] text-right text-[var(--vscode-fg-subtle)]">{t('chapter.volumeLabel')}</label>
                             <select
                                 value={selectedVolume}
                                 onChange={(e) => setSelectedVolume(e.target.value)}
@@ -148,13 +150,13 @@ export function ChapterCreateDialog({
                         {/* 插入位置 */}
                         {chapterType !== 'normal' && (
                             <div className="grid grid-cols-[80px_1fr] items-center gap-2">
-                                <label className="text-[11px] text-right text-[var(--vscode-fg-subtle)]">插入到：</label>
+                                <label className="text-[11px] text-right text-[var(--vscode-fg-subtle)]">{t('chapter.insertAfterLabel')}</label>
                                 <select
                                     value={insertAfter}
                                     onChange={(e) => setInsertAfter(e.target.value)}
                                     className="w-full text-xs bg-[var(--vscode-input-bg)] border border-[var(--vscode-input-border)] px-2 py-1 outline-none focus:border-[var(--vscode-focus-border)]"
                                 >
-                                    <option value="">-- 请选择章节 --</option>
+                                    <option value="">{t('chapter.selectChapterOption')}</option>
                                     {normalChapters.map(c => (
                                         <option key={c.normalizedId} value={c.normalizedId}>{c.normalizedId} {c.title}</option>
                                     ))}
@@ -164,7 +166,7 @@ export function ChapterCreateDialog({
 
                         {/* 编号输入 */}
                         <div className="grid grid-cols-[80px_1fr] items-center gap-2">
-                            <label className="text-[11px] text-right text-[var(--vscode-fg-subtle)]">编号：</label>
+                            <label className="text-[11px] text-right text-[var(--vscode-fg-subtle)]">{t('chapter.numberLabel')}</label>
                             <div className="flex items-center gap-2">
                                 <input
                                     value={customId}
@@ -172,17 +174,17 @@ export function ChapterCreateDialog({
                                     placeholder={suggestedId}
                                     className="w-24 text-xs font-mono bg-[var(--vscode-input-bg)] border border-[var(--vscode-input-border)] px-2 py-1 outline-none focus:border-[var(--vscode-focus-border)]"
                                 />
-                                <span className="text-[10px] text-[var(--vscode-fg-subtle)]">结果：{finalId}</span>
+                                <span className="text-[10px] text-[var(--vscode-fg-subtle)]">{t('chapter.resultLabel')}{finalId}</span>
                             </div>
                         </div>
 
                         {/* 标题输入 */}
                         <div className="grid grid-cols-[80px_1fr] items-center gap-2">
-                            <label className="text-[11px] text-right text-[var(--vscode-fg-subtle)]">标题：</label>
+                            <label className="text-[11px] text-right text-[var(--vscode-fg-subtle)]">{t('chapter.titleFieldLabel')}</label>
                             <input
                                 value={title}
                                 onChange={(e) => setTitle(e.target.value)}
-                                placeholder="请输入章节标题..."
+                                placeholder={t('chapter.titlePlaceholder')}
                                 className="w-full text-xs font-bold bg-[var(--vscode-input-bg)] border border-[var(--vscode-input-border)] px-2 py-1 outline-none focus:border-[var(--vscode-focus-border)]"
                                 autoFocus
                             />
@@ -195,14 +197,14 @@ export function ChapterCreateDialog({
                             onClick={onClose}
                             className="px-3 py-1 text-xs border border-[var(--vscode-input-border)] bg-[var(--vscode-input-bg)] hover:bg-[var(--vscode-list-hover)]"
                         >
-                            取消
+                            {t('common.cancel')}
                         </button>
                         <button
                             onClick={() => { if (canCreate) { onConfirm({ id: finalId, title, type: chapterType }); onClose(); } }}
                             disabled={!canCreate}
                             className="px-3 py-1 text-xs text-white bg-[var(--vscode-list-active)] hover:opacity-90 disabled:opacity-50"
                         >
-                            创建
+                            {t('common.create')}
                         </button>
                     </div>
                 </div>

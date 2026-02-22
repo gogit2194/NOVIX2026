@@ -16,6 +16,7 @@ import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { volumesAPI } from '../../api';
 import { cn } from '../ui/core';
 import logger from '../../utils/logger';
+import { useLocale } from '../../i18n';
 
 /**
  * 分卷管理组件 - 小说分卷（部分、章节集合）的创建和编辑
@@ -40,6 +41,7 @@ import logger from '../../utils/logger';
  * @returns {JSX.Element} 分卷管理组件 / Volume manager element
  */
 const VolumeManager = ({ projectId, onVolumeSelect, onRefresh }) => {
+  const { t } = useLocale();
   const [isCreating, setIsCreating] = useState(false);
   const [editingVolume, setEditingVolume] = useState(null);
   const [newVolume, setNewVolume] = useState({ title: '', summary: '' });
@@ -52,7 +54,7 @@ const VolumeManager = ({ projectId, onVolumeSelect, onRefresh }) => {
 
   const handleCreateVolume = async () => {
     if (!newVolume.title.trim()) {
-      alert('请输入分卷标题');
+      alert(t('volume.titleRequired'));
       return;
     }
 
@@ -64,13 +66,13 @@ const VolumeManager = ({ projectId, onVolumeSelect, onRefresh }) => {
       onRefresh?.();
     } catch (error) {
       logger.error('Failed to create volume:', error);
-      alert('创建分卷失败');
+      alert(t('volume.createFailed'));
     }
   };
 
   const handleUpdateVolume = async () => {
     if (!editingVolume?.title?.trim()) {
-      alert('请输入分卷标题');
+      alert(t('volume.titleRequired'));
       return;
     }
 
@@ -85,16 +87,16 @@ const VolumeManager = ({ projectId, onVolumeSelect, onRefresh }) => {
       onRefresh?.();
     } catch (error) {
       logger.error('Failed to update volume:', error);
-      alert('更新分卷失败');
+      alert(t('volume.updateFailed'));
     }
   };
 
   const handleDeleteVolume = async (volumeId) => {
     if (volumeId === 'V1') {
-      alert('默认分卷 V1 不可删除');
+      alert(t('volume.v1CannotDelete'));
       return;
     }
-    if (!window.confirm('确定要删除该分卷吗？该操作不可撤销。')) {
+    if (!window.confirm(t('volume.deleteConfirm'))) {
       return;
     }
 
@@ -104,30 +106,30 @@ const VolumeManager = ({ projectId, onVolumeSelect, onRefresh }) => {
       onRefresh?.();
     } catch (error) {
       logger.error('Failed to delete volume:', error);
-      alert('删除分卷失败');
+      alert(t('volume.deleteFailed'));
     }
   };
 
   if (isLoading) {
-    return <div className="text-xs text-[var(--vscode-fg-subtle)] px-3 py-4">加载分卷中...</div>;
+    return <div className="text-xs text-[var(--vscode-fg-subtle)] px-3 py-4">{t('common.loading')}</div>;
   }
 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between px-1">
-        <div className="text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase tracking-wider">分卷</div>
+        <div className="text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase tracking-wider">{t('volume.sectionTitle')}</div>
         <button
           className="inline-flex items-center gap-1 text-xs text-[var(--vscode-fg)] hover:text-[var(--vscode-fg)] transition-colors"
           onClick={() => setIsCreating(true)}
         >
-          <Plus size={12} /> 新建
+          <Plus size={12} /> {t('common.new')}
         </button>
       </div>
 
       <div className="space-y-1.5">
         {volumes.length === 0 ? (
           <div className="p-3 text-center text-xs text-[var(--vscode-fg-subtle)] border border-dashed border-[var(--vscode-sidebar-border)] rounded-[6px]">
-            暂无分卷
+            {t('volume.empty')}
           </div>
         ) : (
           volumes.map((volume) => (
@@ -151,7 +153,7 @@ const VolumeManager = ({ projectId, onVolumeSelect, onRefresh }) => {
                 <button
                   className="p-2 rounded-[6px] hover:bg-[var(--vscode-list-hover)] text-[var(--vscode-fg-subtle)] hover:text-[var(--vscode-fg)] transition-colors"
                   onClick={() => setEditingVolume(volume)}
-                  title="编辑分卷"
+                  title={t('common.edit')}
                 >
                   <Pencil size={14} />
                 </button>
@@ -161,7 +163,7 @@ const VolumeManager = ({ projectId, onVolumeSelect, onRefresh }) => {
                     volume.id === 'V1' ? 'text-[var(--vscode-fg-subtle)] cursor-not-allowed' : 'hover:bg-red-50 text-red-500'
                   )}
                   onClick={() => handleDeleteVolume(volume.id)}
-                  title={volume.id === 'V1' ? '默认分卷不可删除' : '删除分卷'}
+                  title={volume.id === 'V1' ? t('volume.v1CannotDelete') : t('common.delete')}
                   disabled={volume.id === 'V1'}
                 >
                   <Trash2 size={14} />
@@ -174,40 +176,40 @@ const VolumeManager = ({ projectId, onVolumeSelect, onRefresh }) => {
 
       {isCreating && (
         <Modal
-          title="创建新分卷"
+          title={t('volume.createTitle')}
           onClose={() => setIsCreating(false)}
           onConfirm={handleCreateVolume}
-          confirmText="创建"
+          confirmText={t('volume.create')}
         >
           <InputField
-            label="分卷标题"
+            label={t('volume.titleLabel')}
             value={newVolume.title}
             onChange={(value) => setNewVolume({ ...newVolume, title: value })}
-            placeholder="例如：第一卷"
+            placeholder={t('volume.titlePlaceholder')}
           />
           <TextAreaField
-            label="分卷简介（可选）"
+            label={t('volume.summaryLabel')}
             value={newVolume.summary}
             onChange={(value) => setNewVolume({ ...newVolume, summary: value })}
-            placeholder="一句话描述分卷内容（可选）"
+            placeholder={t('volume.summaryPlaceholder')}
           />
         </Modal>
       )}
 
       {editingVolume && (
         <Modal
-          title="编辑分卷"
+          title={t('volume.editTitle')}
           onClose={() => setEditingVolume(null)}
           onConfirm={handleUpdateVolume}
-          confirmText="保存"
+          confirmText={t('common.save')}
         >
           <InputField
-            label="分卷标题"
+            label={t('volume.titleLabel')}
             value={editingVolume.title}
             onChange={(value) => setEditingVolume({ ...editingVolume, title: value })}
           />
           <TextAreaField
-            label="分卷简介（可选）"
+            label={t('volume.summaryLabel')}
             value={editingVolume.summary || ''}
             onChange={(value) => setEditingVolume({ ...editingVolume, summary: value })}
           />
@@ -218,6 +220,7 @@ const VolumeManager = ({ projectId, onVolumeSelect, onRefresh }) => {
 };
 
 const Modal = ({ title, onClose, onConfirm, confirmText, children }) => {
+  const { t } = useLocale();
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4 anti-theme">
       <div className="w-full max-w-md glass-panel border border-[var(--vscode-sidebar-border)] rounded-[6px] overflow-hidden">
@@ -226,7 +229,7 @@ const Modal = ({ title, onClose, onConfirm, confirmText, children }) => {
           <button
             className="p-2 rounded-[6px] text-[var(--vscode-fg-subtle)] hover:text-[var(--vscode-fg)] hover:bg-[var(--vscode-list-hover)] transition-colors"
             onClick={onClose}
-            title="关闭"
+            title={t('common.close')}
           >
             X
           </button>
@@ -237,7 +240,7 @@ const Modal = ({ title, onClose, onConfirm, confirmText, children }) => {
             className="px-3 py-2 text-sm rounded-[6px] border border-[var(--vscode-input-border)] text-[var(--vscode-fg)] hover:bg-[var(--vscode-list-hover)] transition-colors"
             onClick={onClose}
           >
-            取消
+            {t('common.cancel')}
           </button>
           <button
             className="px-3 py-2 text-sm rounded-[6px] bg-[var(--vscode-list-active)] text-[var(--vscode-list-active-fg)] hover:opacity-90 transition-colors"

@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Card, Input } from '../ui/core';
 import { X, Trash2, Plus, CheckSquare } from 'lucide-react';
+import { useLocale } from '../../i18n';
 
 /**
  * 分析结果确认对话框 - 批量同步后用于校对章节摘要与事实
@@ -66,6 +67,7 @@ export default function AnalysisReviewDialog({
   onSave,
   saving = false,
 }) {
+  const { t } = useLocale();
   const [currentChapter, setCurrentChapter] = useState('');
   const [analysisMap, setAnalysisMap] = useState({});
 
@@ -205,13 +207,13 @@ export default function AnalysisReviewDialog({
               {/* 对话框头部 / Dialog header */}
               <div className="px-6 py-5 border-b border-[var(--vscode-sidebar-border)] bg-[var(--vscode-sidebar-bg)] flex items-start justify-between gap-4">
                 <div className="space-y-1">
-                  <h2 className="text-xl font-bold text-[var(--vscode-fg)]">分析结果确认</h2>
-                  <p className="text-sm text-[var(--vscode-fg-subtle)]">可在保存前微调摘要与事实。</p>
+                  <h2 className="text-xl font-bold text-[var(--vscode-fg)]">{t('analysisReview.title')}</h2>
+                  <p className="text-sm text-[var(--vscode-fg-subtle)]">{t('analysisReview.subtitle')}</p>
                 </div>
                 <button
                   onClick={onCancel}
                   className="p-2 rounded-[6px] hover:bg-[var(--vscode-list-hover)] text-[var(--vscode-fg-subtle)] hover:text-[var(--vscode-fg)] transition-none"
-                  title="关闭"
+                  title={t('common.close')}
                 >
                   <X size={16} />
                 </button>
@@ -221,7 +223,7 @@ export default function AnalysisReviewDialog({
               <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4 overflow-hidden p-6">
                 {/* 章节列表侧栏 / Chapter list sidebar */}
                 <div className="border border-[var(--vscode-sidebar-border)] rounded-[6px] bg-[var(--vscode-bg)] p-2 overflow-y-auto custom-scrollbar">
-                  <div className="text-xs font-bold text-[var(--vscode-fg-subtle)] px-2 py-1">章节列表</div>
+                  <div className="text-xs font-bold text-[var(--vscode-fg-subtle)] px-2 py-1">{t('analysisReview.chapterSummary')}</div>
                   <div className="space-y-1 mt-2">
                     {chapterList.map((item) => {
                       const active = item.chapter === currentChapter;
@@ -238,7 +240,7 @@ export default function AnalysisReviewDialog({
                         >
                           <CheckSquare size={12} className={active ? 'text-[var(--vscode-list-active-fg)]' : 'text-[var(--vscode-fg-subtle)]'} />
                           <span className="font-mono text-[11px]">{item.chapter}</span>
-                          <span className="truncate">{item.title || '未命名章节'}</span>
+                          <span className="truncate">{item.title || t('chapter.noTitle')}</span>
                         </button>
                       );
                     })}
@@ -251,15 +253,15 @@ export default function AnalysisReviewDialog({
                     {/* 章节摘要编辑 / Chapter summary editor */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-[var(--vscode-fg)]">章节摘要</h3>
-                        <span className="text-[10px] text-[var(--vscode-fg-subtle)]">不可删除</span>
+                        <h3 className="text-sm font-bold text-[var(--vscode-fg)]">{t('analysisReview.chapterSummary')}</h3>
+                        <span className="text-[10px] text-[var(--vscode-fg-subtle)]">{t('common.default')}</span>
                       </div>
                       <textarea
                         value={current.summary?.brief_summary || ''}
                         onChange={(e) =>
                           updateCurrent({ summary: { ...current.summary, brief_summary: e.target.value } })
                         }
-                        placeholder="暂无摘要"
+                        placeholder={t('fact.summaryEmpty')}
                         className="w-full min-h-[140px] text-sm bg-[var(--vscode-input-bg)] border border-[var(--vscode-input-border)] rounded-[6px] px-3 py-2 text-[var(--vscode-fg)] focus:outline-none focus:ring-2 focus:ring-[var(--vscode-focus-border)] focus:border-[var(--vscode-focus-border)] resize-none"
                       />
                     </div>
@@ -268,8 +270,8 @@ export default function AnalysisReviewDialog({
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <h3 className="text-sm font-bold text-[var(--vscode-fg)]">事实</h3>
-                          <span className="text-[10px] text-[var(--vscode-fg-subtle)]">建议 3-5 条</span>
+                          <h3 className="text-sm font-bold text-[var(--vscode-fg)]">{t('fact.title')}</h3>
+                          <span className="text-[10px] text-[var(--vscode-fg-subtle)]"></span>
                         </div>
                         <button
                           onClick={addFact}
@@ -277,12 +279,12 @@ export default function AnalysisReviewDialog({
                           disabled={current.facts.length >= 5}
                         >
                           <Plus size={12} />
-                          新增事实 ({current.facts.length}/5)
+                          {t('fact.addFact')} ({current.facts.length}/5)
                         </button>
                       </div>
                       {current.facts.length === 0 ? (
                         <div className="text-xs text-[var(--vscode-fg-subtle)] border border-dashed border-[var(--vscode-sidebar-border)] rounded-[6px] px-3 py-2">
-                          暂无事实
+                          {t('fact.noFacts')}
                         </div>
                       ) : (
                         <div className="space-y-2">
@@ -291,13 +293,13 @@ export default function AnalysisReviewDialog({
                               <Input
                                 value={fact.statement || ''}
                                 onChange={(e) => updateFact(idx, e.target.value)}
-                                placeholder="填写事实内容"
+                                placeholder={t('fact.contentPlaceholder')}
                                 className="bg-[var(--vscode-input-bg)] border-[var(--vscode-input-border)] text-sm text-[var(--vscode-fg)] focus-visible:border-[var(--vscode-focus-border)] focus-visible:ring-[var(--vscode-focus-border)]"
                               />
                               <button
                                 onClick={() => removeFact(idx)}
                                 className="p-2 rounded-[6px] hover:bg-red-50 text-red-500"
-                                title="移除"
+                                title={t('common.delete')}
                               >
                                 <Trash2 size={14} />
                               </button>
@@ -323,14 +325,14 @@ export default function AnalysisReviewDialog({
                   disabled={saving}
                   className="h-8 px-3 text-xs rounded-[4px] border border-[var(--vscode-input-border)] text-[var(--vscode-fg)] hover:bg-[var(--vscode-list-hover)] shadow-none"
                 >
-                  取消
+                  {t('common.cancel')}
                 </Button>
                 <Button
                   onClick={handleSave}
                   disabled={saving}
                   className="h-8 px-3 text-xs rounded-[4px] bg-[var(--vscode-list-active)] text-[var(--vscode-list-active-fg)] hover:opacity-90 shadow-none"
                 >
-                  {saving ? '保存中...' : '保存并入库'}
+                  {saving ? t('common.processing') : t('analysisReview.confirm')}
                 </Button>
               </div>
             </Card>

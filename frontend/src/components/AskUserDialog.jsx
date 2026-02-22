@@ -14,6 +14,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from './ui/core';
 import { X } from 'lucide-react';
+import { useLocale } from '../i18n';
 
 /**
  * 用户确认对话框 - 询问用户问题并收集选项选择
@@ -54,6 +55,7 @@ export default function AskUserDialog({
   onConfirm,
   onCancel
 }) {
+  const { t } = useLocale();
   const [selectedOption, setSelectedOption] = useState(null);
 
   const handleConfirm = () => {
@@ -133,13 +135,13 @@ export default function AskUserDialog({
                   variant="ghost"
                   onClick={handleCancel}
                 >
-                  取消
+                  {t('common.cancel')}
                 </Button>
                 <Button
                   onClick={handleConfirm}
                   disabled={options.length > 0 && !selectedOption}
                 >
-                  确认
+                  {t('common.confirm')}
                 </Button>
               </div>
             </div>

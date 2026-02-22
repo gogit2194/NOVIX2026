@@ -15,6 +15,7 @@ import { useIDE } from '../../../context/IDEContext';
 import { Search, Loader2 } from 'lucide-react';
 import { Input } from '../../ui/core';
 import { evidenceAPI } from '../../../api';
+import { useLocale } from '../../../i18n';
 
 /**
  * 全局搜索面板 - 跨项目文本搜索与结果展示
@@ -31,6 +32,7 @@ import { evidenceAPI } from '../../../api';
  * @returns {JSX.Element} 全局搜索面板 / Search panel element
  */
 export default function SearchPanel() {
+    const { t } = useLocale();
     const [query, setQuery] = useState('');
     const [isSearching, setIsSearching] = useState(false);
     const [results, setResults] = useState([]);
@@ -53,7 +55,7 @@ export default function SearchPanel() {
             setResults(resp.data?.items || []);
         } catch (err) {
             setResults([]);
-            setError(err?.message || '搜索失败');
+            setError(err?.message || t('panels.search.searchFailed'));
         } finally {
             setIsSearching(false);
         }
@@ -65,7 +67,7 @@ export default function SearchPanel() {
                 <form onSubmit={handleSearch} className="relative">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-[var(--vscode-fg-subtle)] opacity-70" />
                     <Input
-                        placeholder="全局搜索..."
+                        placeholder={t('panels.search.globalPlaceholder')}
                         className="pl-8 h-9 text-xs"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
@@ -77,7 +79,7 @@ export default function SearchPanel() {
                 {isSearching ? (
                     <div className="flex flex-col items-center justify-center text-[var(--vscode-fg-subtle)] py-8 gap-2 text-center">
                         <Loader2 size={16} className="animate-spin" />
-                        <span className="text-xs">搜索中...</span>
+                        <span className="text-xs">{t('panels.search.searching')}</span>
                     </div>
                 ) : error ? (
                     <div className="text-xs text-red-400 text-center">{error}</div>
@@ -103,9 +105,9 @@ export default function SearchPanel() {
                     </div>
                 ) : (
                     <div className="text-xs text-[var(--vscode-fg-subtle)] text-center">
-                        在这里搜索项目内容、角色和设定。
+                        {t('panels.search.emptyHint')}
                         <br /><br />
-                        请输入关键词开始搜索。
+                        {t('panels.search.emptyHint2')}
                     </div>
                 )}
             </div>

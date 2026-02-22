@@ -44,6 +44,7 @@ import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../ui/core';
 import { Plus, Minus, FileText } from 'lucide-react';
+import { useLocale } from '../../i18n';
 
 const renderLine = (line) => (line === '' ? '\u00A0' : line);
 
@@ -57,6 +58,7 @@ const DiffReviewView = ({
     originalVersion = "v1",
     revisedVersion = "v2"
 }) => {
+    const { t } = useLocale();
     const segments = useMemo(() => buildInlineSegments(ops), [ops]);
     const hasChanges = (hunks?.length || 0) > 0 || segments.some((segment) => segment.type === 'change');
 
@@ -64,7 +66,7 @@ const DiffReviewView = ({
         return (
             <div className="flex flex-col items-center justify-center h-full p-8 text-[var(--vscode-fg-subtle)]">
                 <FileText size={48} className="mb-4 opacity-50" />
-                <p className="text-sm">无修改内容</p>
+                <p className="text-sm">{t('diff.noChanges')}</p>
             </div>
         );
     }
@@ -75,16 +77,16 @@ const DiffReviewView = ({
             <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--vscode-sidebar-border)] bg-[var(--vscode-sidebar-bg)]">
                 <div className="flex items-center gap-4">
                     <span className="text-xs font-bold text-[var(--vscode-fg)]">
-                        编辑修改预览
+                        {t('diff.previewTitle')}
                     </span>
                     <div className="flex items-center gap-3 text-[10px]">
                         <span className="flex items-center gap-1 text-green-600">
                             <Plus size={12} />
-                            <span className="font-mono">{stats.additions || 0} 新增</span>
+                            <span className="font-mono">{stats.additions || 0} {t('diff.added')}</span>
                         </span>
                         <span className="flex items-center gap-1 text-red-500">
                             <Minus size={12} />
-                            <span className="font-mono">{stats.deletions || 0} 删除</span>
+                            <span className="font-mono">{stats.deletions || 0} {t('diff.deleted')}</span>
                         </span>
                     </div>
                     <span className="text-[10px] text-[var(--vscode-fg-subtle)] font-mono">
@@ -128,7 +130,8 @@ const DiffReviewView = ({
 };
 
 const InlineChangeBlock = ({ decision, onAccept, onReject, deletedLines = [], addedLines = [] }) => {
-    const statusText = decision === 'accepted' ? '已接受' : decision === 'rejected' ? '已拒绝' : '待确认';
+    const { t } = useLocale();
+    const statusText = decision === 'accepted' ? t('diff.decision.accepted') : decision === 'rejected' ? t('diff.decision.rejected') : t('diff.decision.pending');
 
     return (
         <motion.div
@@ -138,7 +141,7 @@ const InlineChangeBlock = ({ decision, onAccept, onReject, deletedLines = [], ad
         >
             <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--vscode-sidebar-border)] bg-[var(--vscode-sidebar-bg)]">
                 <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono text-[var(--vscode-fg-subtle)]">差异块</span>
+                    <span className="text-[10px] font-mono text-[var(--vscode-fg-subtle)]">{t('diff.hunkLabel')}</span>
                     <span className={cn(
                         "text-[10px] px-2 py-0.5 rounded-full border",
                         decision === 'accepted'
@@ -161,7 +164,7 @@ const InlineChangeBlock = ({ decision, onAccept, onReject, deletedLines = [], ad
                                 : "text-red-600 border-red-200 hover:bg-red-50"
                         )}
                     >
-                        拒绝
+                        {t('diff.reject')}
                     </button>
                     <button
                         type="button"
@@ -173,7 +176,7 @@ const InlineChangeBlock = ({ decision, onAccept, onReject, deletedLines = [], ad
                                 : "text-green-700 border-green-200 hover:bg-green-50"
                         )}
                     >
-                        接受
+                        {t('diff.accept')}
                     </button>
                 </div>
             </div>

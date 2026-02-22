@@ -15,6 +15,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from urllib.parse import urlparse
+from pathlib import Path
 from app.services.search_service import search_service
 from app.services.crawler_service import crawler_service
 from app.agents.archivist import ArchivistAgent
@@ -47,6 +48,35 @@ def _is_http_url(url: str) -> bool:
     return True
 
 
+def _normalize_language(value: Optional[str]) -> Optional[str]:
+    raw = str(value or "").strip().lower()
+    if raw.startswith("en"):
+        return "en"
+    if raw.startswith("zh"):
+        return "zh"
+    return None
+
+
+async def _resolve_project_language(project_id: str, request_language: Optional[str] = None) -> str:
+    """Resolve writing language from project metadata."""
+    explicit = _normalize_language(request_language)
+    if explicit:
+        return explicit
+    pid = str(project_id or "").strip()
+    if not pid:
+        return "zh"
+    try:
+        project_file = Path(card_storage.data_dir) / pid / "project.yaml"
+        if not project_file.exists():
+            return "zh"
+        data = await card_storage.read_yaml(project_file) or {}
+        language = _normalize_language(data.get("language"))
+        return language or "zh"
+    except Exception as exc:
+        logger.warning("Resolve fanfiction project language failed: %s", exc)
+        return "zh"
+
+
 # Schema definitions
 class SearchRequest(BaseModel):
     query: str
@@ -75,6 +105,7 @@ class PreviewResponse(BaseModel):
 
 class ExtractRequest(BaseModel):
     project_id: str
+    language: Optional[str] = None
     url: Optional[str] = None
     title: Optional[str] = None
     content: Optional[str] = None
@@ -83,6 +114,7 @@ class ExtractRequest(BaseModel):
 
 class BatchExtractRequest(BaseModel):
     project_id: str
+    language: Optional[str] = None
     urls: List[str]
 
 
@@ -96,7 +128,7 @@ class ExtractResponse(BaseModel):
 async def search_wikis(request: SearchRequest):
     """Search for relevant Wiki pages"""
     # 搜索源固定为萌娘百科（保证稳定、避免引入不受控站点）
-    results = search_service.search_wiki(request.query, engine="moegirl", max_results=10)
+    results = search_service.search_wiki(request.query, engine=request.engine, max_results=10)
     return [SearchResult(**r) for r in results]
 
 
@@ -156,11 +188,13 @@ async def extract_cards(request: ExtractRequest):
         if not content:
             return {"success": False, "error": "没有可提取的内容。", "proposals": []}
 
+        language = await _resolve_project_language(request.project_id, request.language)
         agent = ArchivistAgent(
             gateway=get_gateway(),
             card_storage=card_storage,
             canon_storage=canon_storage,
             draft_storage=draft_storage,
+            language=language,
         )
 
         proposal = await agent.extract_fanfiction_card(title=title, content=content)
@@ -199,11 +233,13 @@ async def batch_extract_cards(request: BatchExtractRequest):
             }
         results = await crawler_service.scrape_pages_concurrent(urls)
 
+        language = await _resolve_project_language(request.project_id, request.language)
         agent = ArchivistAgent(
             gateway=get_gateway(),
             card_storage=card_storage,
             canon_storage=canon_storage,
             draft_storage=draft_storage,
+            language=language,
         )
 
         proposals: List[Dict[str, Any]] = []

@@ -27,9 +27,10 @@ import DiffReviewView from '../components/ide/DiffReviewView';
 import SaveMenu from '../components/writing/SaveMenu';
 import FanfictionView from './FanfictionView';
 import logger from '../utils/logger';
+import { useLocale } from '../i18n';
 import {
     fetchChapterContent,
-    countChars,
+    countWords,
     escapeRegExp,
     getSelectionStats,
     normalizeStars,
@@ -58,6 +59,8 @@ import {
  * @returns {JSX.Element} 写作会话主界面
  */
 function WritingSessionContent({ isEmbedded = false }) {
+  const { t, locale } = useLocale();
+  const requestLanguage = locale === 'en-US' ? 'en' : 'zh';
     const { projectId } = useParams();
     const navigate = useNavigate();
     const { state, dispatch } = useIDE();
@@ -67,6 +70,7 @@ function WritingSessionContent({ isEmbedded = false }) {
     // ========================================================================
     // 项目数据状态 / Project data from API
     const [project, setProject] = useState(null);
+    const writingLanguage = project?.language === 'en' ? 'en' : 'zh';
     const prevProjectIdRef = useRef(null);
 
     useEffect(() => {
@@ -244,10 +248,11 @@ function WritingSessionContent({ isEmbedded = false }) {
     const lockedOnActiveChapter =
         agentBusy && String(aiLockedChapter || '') === activeChapterKey;
 
-    const canUseWriter = countChars(
+    const canUseWriter = countWords(
         agentBusy
             ? (manualContentByChapter[String(aiLockedChapter || '')] ?? '')
-            : manualContent
+            : manualContent,
+        writingLanguage
     ) === 0;
 
     const messages = messagesByChapter[agentChapterKey] || [];
@@ -282,7 +287,7 @@ function WritingSessionContent({ isEmbedded = false }) {
             projectId,
             (data) => {
                 const wsChapterKey = data?.chapter ? String(data.chapter) : NO_CHAPTER_KEY;
-                if (data.type === 'start_ack') appendProgressEvent({ stage: 'session_start', message: '会话已启动' }, wsChapterKey);
+                if (data.type === 'start_ack') appendProgressEvent({ stage: 'session_start', message: t('writingSession.sessionStarted') }, wsChapterKey);
                 if (data.type === 'stream_start') {
                     if (wsChapterKey && wsChapterKey !== NO_CHAPTER_KEY) {
                         setAiLockedChapter(wsChapterKey);
@@ -361,10 +366,10 @@ function WritingSessionContent({ isEmbedded = false }) {
                     });
                     setIsGenerating(false);
                     if (activeChapterKeyRef.current === wsChapterKey) {
-                        dispatch({ type: 'SET_WORD_COUNT', payload: countChars(finalText) });
+                        dispatch({ type: 'SET_WORD_COUNT', payload: countWords(finalText, writingLanguage) });
                         dispatch({ type: 'SET_SELECTION_COUNT', payload: 0 });
                     } else {
-                        pushNotice(`第 ${wsChapterKey} 章撰写完成，可切换查看。`);
+                        pushNotice(t('writingSession.chapterDone').replace('{n}', wsChapterKey));
                     }
                     if (data.draft) {
                         setCurrentDraft(data.draft);
@@ -374,7 +379,7 @@ function WritingSessionContent({ isEmbedded = false }) {
                         setProposals(data.proposals);
                     }
                     setStatus('waiting_feedback');
-                    addMessage('assistant', '草稿已生成，可继续反馈或手动编辑。', wsChapterKey);
+                    addMessage('assistant', t('writingSession.draftGenerated'), wsChapterKey);
                 }
                 if (data.type === 'scene_brief') handleSceneBrief(data.data, wsChapterKey);
                 if (data.type === 'draft_v1') handleDraftV1(data.data, wsChapterKey);
@@ -406,13 +411,13 @@ function WritingSessionContent({ isEmbedded = false }) {
                 onStatus: (status) => {
                     if (wsStatusRef.current !== status) {
                         if (status === 'reconnecting') {
-                            appendProgressEvent({ stage: 'connection', message: '连接中断，正在重连…' }, NO_CHAPTER_KEY);
+                            appendProgressEvent({ stage: 'connection', message: t('writingSession.connectionReconnecting') }, NO_CHAPTER_KEY);
                         }
                         if (status === 'connected' && wsStatusRef.current === 'reconnecting') {
-                            appendProgressEvent({ stage: 'connection', message: '连接已恢复' }, NO_CHAPTER_KEY);
+                            appendProgressEvent({ stage: 'connection', message: t('writingSession.connectionRestored') }, NO_CHAPTER_KEY);
                         }
                         if (status === 'disconnected') {
-                            appendProgressEvent({ stage: 'connection', message: '连接已断开' }, NO_CHAPTER_KEY);
+                            appendProgressEvent({ stage: 'connection', message: t('writingSession.connectionLost') }, NO_CHAPTER_KEY);
                         }
                     }
 
@@ -509,7 +514,7 @@ function WritingSessionContent({ isEmbedded = false }) {
 
         setManualContentByChapter((prev) => ({ ...(prev || {}), [chapterKey]: loadedContent }));
         setManualContent(loadedContent);
-        dispatch({ type: 'SET_WORD_COUNT', payload: countChars(loadedContent) });
+        dispatch({ type: 'SET_WORD_COUNT', payload: countWords(loadedContent, writingLanguage) });
         dispatch({ type: 'SET_SELECTION_COUNT', payload: 0 });
         lastGeneratedByChapterRef.current[chapterKey] = false;
         // Only center cursor if we just switched chapters (optional optimization)
@@ -586,7 +591,7 @@ function WritingSessionContent({ isEmbedded = false }) {
             clearDiffReview();
             setStatus('editing');
         } else if (lockedKey && nextChapterKey !== lockedKey) {
-            pushNotice(`正在撰写第 ${lockedKey} 章，AI 面板已锁定；已切换查看第 ${nextChapterKey} 章。`);
+            pushNotice(t('writingSession.chapterLockedNotice').replace('{n}', lockedKey).replace('{m}', nextChapterKey));
         }
 
         // Just set the chapter, let SWR handle fetching
@@ -595,12 +600,12 @@ function WritingSessionContent({ isEmbedded = false }) {
         setAttachedSelection(null);
         setEditScope('document');
 
-        // 优先使用本地缓存，减少切章时的“空白闪烁”
+        // 优先使用本地缓存，减少切章时的"空白闪烁"
         if (nextChapterKey && nextChapterKey !== NO_CHAPTER_KEY) {
             const cached = manualContentByChapterRef.current?.[nextChapterKey];
             if (typeof cached === 'string') {
                 setManualContent(cached);
-                dispatch({ type: 'SET_WORD_COUNT', payload: countChars(cached) });
+                dispatch({ type: 'SET_WORD_COUNT', payload: countWords(cached, writingLanguage) });
                 dispatch({ type: 'SET_SELECTION_COUNT', payload: 0 });
             } else {
                 setManualContent('');
@@ -643,13 +648,13 @@ function WritingSessionContent({ isEmbedded = false }) {
                 title: chapterTitle
             });
             normalizedChapter = resp.data?.chapter || chapterNum;
-            addMessage('system', `已创建章节：${normalizedChapter}`, normalizedChapter);
+            addMessage('system', t('writingSession.chapterCreated').replace('{id}', normalizedChapter), normalizedChapter);
             dispatch({
                 type: 'SET_ACTIVE_DOCUMENT',
                 payload: { type: 'chapter', id: normalizedChapter, title: chapterTitle || '' }
             });
         } catch (e) {
-            addMessage('error', '创建章节失败: ' + e.message);
+            addMessage('error', t('writingSession.chapterCreateFailed') + e.message);
         } finally {
             setIsSaving(false);
         }
@@ -732,7 +737,7 @@ function WritingSessionContent({ isEmbedded = false }) {
                 }
             } catch (e) {
                 dispatch({ type: 'SET_UNSAVED' });
-                addMessage('error', '自动保存失败: ' + (e.response?.data?.detail || e.message));
+                addMessage('error', t('writingSession.autoSaveFailed') + (e.response?.data?.detail || e.message));
             } finally {
                 autosaveInFlightRef.current = false;
             }
@@ -864,10 +869,10 @@ function WritingSessionContent({ isEmbedded = false }) {
                 setIsGenerating(false);
                 streamingChapterKeyRef.current = null;
                 if (activeChapterKeyRef.current === resolvedChapterKey) {
-                    dispatch({ type: 'SET_WORD_COUNT', payload: countChars(safeText) });
+                    dispatch({ type: 'SET_WORD_COUNT', payload: countWords(safeText, writingLanguage) });
                     dispatch({ type: 'SET_SELECTION_COUNT', payload: 0 });
                 } else {
-                    pushNotice(`第 ${resolvedChapterKey} 章撰写完成，可切换查看。`);
+                    pushNotice(t('writingSession.chapterDone').replace('{n}', resolvedChapterKey));
                 }
                 onComplete?.();
                 return;
@@ -951,7 +956,7 @@ function WritingSessionContent({ isEmbedded = false }) {
                     });
                 } catch (e) {
                     logger.error("Failed to fetch card details", e);
-                    addMessage('error', '加载卡片详情失败: ' + e.message);
+                    addMessage('error', t('writingSession.loadCardFailed') + e.message);
                 }
             };
 
@@ -964,7 +969,7 @@ function WritingSessionContent({ isEmbedded = false }) {
     // Handlers
     const handleStart = async (chapter, mode, instruction = null) => {
         if (!chapter) {
-            alert('请先选择章节');
+            alert(t('writingSession.selectChapterFirst'));
             return;
         }
         const chapterKey = String(chapter);
@@ -987,12 +992,13 @@ function WritingSessionContent({ isEmbedded = false }) {
         setProgressEventsByChapter((prev) => ({ ...(prev || {}), [chapterKey]: [] }));
 
         setAgentMode('create');
-        appendProgressEvent({ stage: 'session_start', message: '正在准备上下文…' }, chapterKey);
+        appendProgressEvent({ stage: 'session_start', message: t('writingSession.preparingContext') }, chapterKey);
 
         try {
             const payload = {
+                language: requestLanguage,
                 chapter: String(chapter),
-                chapter_title: chapterInfo.chapter_title || `章节 ${chapter}`,
+                chapter_title: chapterInfo.chapter_title || t('writingSession.chapterFallback').replace('{n}', chapter),
                 chapter_goal: instruction || 'Auto-generation based on context',
                 target_word_count: 3000
             };
@@ -1001,12 +1007,12 @@ function WritingSessionContent({ isEmbedded = false }) {
             const result = resp.data;
 
             if (!result.success) {
-                throw new Error(result.error || '会话启动失败');
+                throw new Error(result.error || t('writingSession.sessionStartFailed'));
             }
             if (result.status === 'waiting_user_input' && result.questions?.length) {
                 if (result.scene_brief) {
                     setSceneBrief(result.scene_brief);
-                    appendProgressEvent({ stage: 'scene_brief', message: '场景简报已生成（可展开查看）', payload: result.scene_brief }, chapterKey);
+                    appendProgressEvent({ stage: 'scene_brief', message: t('writingSession.sceneBriefGenerated'), payload: result.scene_brief }, chapterKey);
                 }
                 setContextDebugByChapter((prev) => ({ ...(prev || {}), [chapterKey]: result.context_debug || null }));
                 setPreWriteQuestions(result.questions);
@@ -1019,7 +1025,7 @@ function WritingSessionContent({ isEmbedded = false }) {
 
             if (result.scene_brief) {
                 setSceneBrief(result.scene_brief);
-                appendProgressEvent({ stage: 'scene_brief', message: '场景简报已生成（可展开查看）', payload: result.scene_brief }, chapterKey);
+                appendProgressEvent({ stage: 'scene_brief', message: t('writingSession.sceneBriefGenerated'), payload: result.scene_brief }, chapterKey);
             }
             setContextDebugByChapter((prev) => ({ ...(prev || {}), [chapterKey]: result.context_debug || null }));
 
@@ -1043,10 +1049,10 @@ function WritingSessionContent({ isEmbedded = false }) {
 
             setStatus('waiting_feedback');
             if (!serverStreamActiveRef.current && !serverStreamUsedRef.current) {
-                addMessage('assistant', '草稿已生成，可继续反馈或手动编辑。', chapterKey);
+                addMessage('assistant', t('writingSession.draftGenerated'), chapterKey);
             }
         } catch (e) {
-            addMessage('error', '启动失败: ' + e.message, chapterKey);
+            addMessage('error', t('writingSession.startFailed') + e.message, chapterKey);
             setStatus('idle');
             setIsGenerating(false);
         }
@@ -1074,14 +1080,14 @@ function WritingSessionContent({ isEmbedded = false }) {
             const result = resp.data;
 
             if (!result.success) {
-                throw new Error(result.error || '回答问题失败');
+                throw new Error(result.error || t('writingSession.answerFailed'));
             }
 
             if (result.status === 'waiting_user_input' && result.questions?.length) {
                 setContextDebugByChapter((prev) => ({ ...(prev || {}), [chapterKey]: result.context_debug || null }));
                 if (result.scene_brief) {
                     setSceneBrief(result.scene_brief);
-                    appendProgressEvent({ stage: 'scene_brief', message: '场景简报已生成（可展开查看）', payload: result.scene_brief }, chapterKey);
+                    appendProgressEvent({ stage: 'scene_brief', message: t('writingSession.sceneBriefGenerated'), payload: result.scene_brief }, chapterKey);
                 }
                 setPreWriteQuestions(result.questions);
                 setPendingStartPayload(startPayload);
@@ -1093,7 +1099,7 @@ function WritingSessionContent({ isEmbedded = false }) {
 
             if (result.scene_brief) {
                 setSceneBrief(result.scene_brief);
-                appendProgressEvent({ stage: 'scene_brief', message: '场景简报已生成（可展开查看）', payload: result.scene_brief }, chapterKey);
+                appendProgressEvent({ stage: 'scene_brief', message: t('writingSession.sceneBriefGenerated'), payload: result.scene_brief }, chapterKey);
             }
             setContextDebugByChapter((prev) => ({ ...(prev || {}), [chapterKey]: result.context_debug || null }));
             if (result.draft_v1) {
@@ -1116,11 +1122,11 @@ function WritingSessionContent({ isEmbedded = false }) {
 
             setStatus('waiting_feedback');
             if (!serverStreamActiveRef.current && !serverStreamUsedRef.current) {
-                addMessage('assistant', '草稿已生成，可继续反馈或手动编辑。', chapterKey);
+                addMessage('assistant', t('writingSession.draftGenerated'), chapterKey);
             }
             setPendingStartPayload(null);
         } catch (e) {
-            addMessage('error', '生成失败: ' + e.message, chapterKey);
+            addMessage('error', t('writingSession.generateFailed') + e.message, chapterKey);
             setStatus('idle');
             setIsGenerating(false);
         }
@@ -1132,7 +1138,7 @@ function WritingSessionContent({ isEmbedded = false }) {
 
     const handleSceneBrief = (data, chapterOverride = null) => {
         setSceneBrief(data);
-        appendProgressEvent({ stage: 'scene_brief', message: '场景简报已生成（可展开查看）', payload: data }, chapterOverride);
+        appendProgressEvent({ stage: 'scene_brief', message: t('writingSession.sceneBriefGenerated'), payload: data }, chapterOverride);
     };
 
     const handleDraftV1 = (data, chapterOverride = null) => {
@@ -1149,7 +1155,7 @@ function WritingSessionContent({ isEmbedded = false }) {
             chapterKey,
         });
         setStatus('waiting_feedback');
-        addMessage('assistant', '草稿已生成，可继续反馈或手动编辑。', chapterOverride);
+        addMessage('assistant', t('writingSession.draftGenerated'), chapterOverride);
     };
 
     const handleFinalDraft = (data, chapterOverride = null) => {
@@ -1166,7 +1172,7 @@ function WritingSessionContent({ isEmbedded = false }) {
             chapterKey,
         });
         setStatus('completed');
-        addMessage('assistant', '终稿已完成。', chapterOverride);
+        addMessage('assistant', t('writingSession.finalDraftDone'), chapterOverride);
     };
 
     const handleSubmitFeedback = async (feedbackOverride) => {
@@ -1189,8 +1195,8 @@ function WritingSessionContent({ isEmbedded = false }) {
             clearDiffReview();
             lastFeedbackRef.current = textToSubmit;
 
-            addMessage('user', `修改指令：${textToSubmit}`);
-            appendProgressEvent({ stage: 'edit_suggest', message: '正在生成差异修改建议…' });
+            addMessage('user', t('writingSession.editInstruction') + textToSubmit);
+            appendProgressEvent({ stage: 'edit_suggest', message: t('writingSession.generatingDiff') });
             setFeedback('');
 
             const payload = {
@@ -1220,24 +1226,24 @@ function WritingSessionContent({ isEmbedded = false }) {
                 const tailFix = stabilizeRevisionTail(baseContent, nextContent, textToSubmit);
                 if (tailFix.applied) {
                     nextContent = normalizeLineEndings(tailFix.text);
-                    addMessage('system', '检测到修改建议疑似截断，已自动补齐原文末尾，请检查差异。');
+                    addMessage('system', t('writingSession.diffTruncationWarning'));
                 }
 
                 const diff = buildLineDiff(baseContent, nextContent, { contextLines: 2 });
                 const hasChanges = Boolean((diff.stats?.additions || 0) + (diff.stats?.deletions || 0));
 
                 if (!hasChanges) {
-                    throw new Error('未能生成可应用的差异修改：请复制粘贴要修改的原句/段落，或使用“选区编辑”进行精确定位。');
+                    throw new Error(t('writingSession.diffGenerateFailed'));
                 }
 
                 appendProgressEvent({
                     stage: 'edit_suggest_done',
-                    message: `差异修改建议已生成（${diff.stats.additions || 0} 新增 / ${diff.stats.deletions || 0} 删除）`
+                    message: t('writingSession.diffGenerated').replace('{add}', diff.stats.additions || 0).replace('{del}', diff.stats.deletions || 0)
                 });
 
                 const hunksWithReason = (diff.hunks || []).map((hunk) => ({
                     ...hunk,
-                    reason: lastFeedbackRef.current || '根据用户指令进行调整'
+                    reason: lastFeedbackRef.current || t('writingSession.diffReason')
                 }));
                 const initialDecisions = hunksWithReason.reduce((acc, hunk) => {
                     acc[hunk.id] = 'accepted';
@@ -1252,14 +1258,14 @@ function WritingSessionContent({ isEmbedded = false }) {
                     chapterKey,
                 });
                 setStatus('waiting_feedback');
-                addMessage('assistant', '已生成差异修改建议：可查看差异并选择“接受”或“撤销”。');
+                addMessage('assistant', t('writingSession.diffReady'));
             } else {
                 throw new Error(result.error || 'Edit failed');
             }
 
             setIsGenerating(false);
         } catch (e) {
-            addMessage('error', '编辑失败: ' + e.message);
+            addMessage('error', t('writingSession.editFailed') + e.message);
             setIsGenerating(false);
             setStatus('waiting_feedback');
         }
@@ -1276,7 +1282,7 @@ function WritingSessionContent({ isEmbedded = false }) {
             const key = String(diffReview.chapterKey);
             setManualContentByChapter((prev) => ({ ...(prev || {}), [key]: nextContent }));
         }
-        dispatch({ type: 'SET_WORD_COUNT', payload: countChars(nextContent) });
+        dispatch({ type: 'SET_WORD_COUNT', payload: countWords(nextContent, writingLanguage) });
         dispatch({ type: 'SET_SELECTION_COUNT', payload: 0 });
         clearDiffReview();
     };
@@ -1292,7 +1298,7 @@ function WritingSessionContent({ isEmbedded = false }) {
             const key = String(diffReview.chapterKey);
             setManualContentByChapter((prev) => ({ ...(prev || {}), [key]: nextContent }));
         }
-        dispatch({ type: 'SET_WORD_COUNT', payload: countChars(nextContent) });
+        dispatch({ type: 'SET_WORD_COUNT', payload: countWords(nextContent, writingLanguage) });
         dispatch({ type: 'SET_SELECTION_COUNT', payload: 0 });
         clearDiffReview();
     };
@@ -1331,7 +1337,7 @@ function WritingSessionContent({ isEmbedded = false }) {
             const key = String(diffReview.chapterKey);
             setManualContentByChapter((prev) => ({ ...(prev || {}), [key]: nextContent }));
         }
-        dispatch({ type: 'SET_WORD_COUNT', payload: countChars(nextContent) });
+        dispatch({ type: 'SET_WORD_COUNT', payload: countWords(nextContent, writingLanguage) });
         dispatch({ type: 'SET_SELECTION_COUNT', payload: 0 });
         clearDiffReview();
     };
@@ -1385,6 +1391,7 @@ function WritingSessionContent({ isEmbedded = false }) {
             }
             const normalizedChapter = saved?.chapter || chapterInfo.chapter;
             const resp = await sessionAPI.analyze(projectId, {
+                language: requestLanguage,
                 chapter: normalizedChapter,
                 content: manualContent,
                 chapter_title: chapterInfo.chapter_title || '',
@@ -1408,6 +1415,7 @@ function WritingSessionContent({ isEmbedded = false }) {
         try {
             if (Array.isArray(payload)) {
                 const resp = await sessionAPI.saveAnalysisBatch(projectId, {
+                    language: requestLanguage,
                     items: payload,
                     overwrite: true,
                 });
@@ -1416,6 +1424,7 @@ function WritingSessionContent({ isEmbedded = false }) {
                 }
             } else if (chapterInfo.chapter) {
                 const resp = await sessionAPI.saveAnalysis(projectId, {
+                    language: requestLanguage,
                     chapter: chapterInfo.chapter,
                     analysis: payload,
                     overwrite: true,
@@ -1442,7 +1451,7 @@ function WritingSessionContent({ isEmbedded = false }) {
         try {
             const name = (cardForm.name || '').trim();
             if (!name) {
-                throw new Error('卡片名称不能为空');
+                throw new Error(t('writingSession.cardNameRequired'));
             }
             const stars = normalizeStars(cardForm.stars);
             const aliases = parseListInput(cardForm.aliases);
@@ -1510,11 +1519,11 @@ function WritingSessionContent({ isEmbedded = false }) {
             } catch (error) {
                 logger.error('Failed to refresh card data', error);
             }
-            addMessage('system', '卡片已更新');
+            addMessage('system', t('writingSession.cardUpdated'));
             dispatch({ type: 'SET_SAVED' });
         } catch (e) {
             const detail = e?.response?.data?.detail || e?.response?.data?.error;
-            addMessage('error', '卡片保存失败: ' + (detail || e.message));
+            addMessage('error', t('writingSession.cardSaveFailed') + (detail || e.message));
         } finally {
             setIsSaving(false);
         }
@@ -1547,7 +1556,7 @@ function WritingSessionContent({ isEmbedded = false }) {
                                     {activeCard.type === 'character' ? '👤' : '🌍'}
                                 </div>
                                 <div>
-                                    <p className="text-xs text-ink-400 font-mono uppercase tracking-wider">{activeCard.type === 'character' ? '角色卡片' : '世界卡片'}</p>
+                                    <p className="text-xs text-ink-400 font-mono uppercase tracking-wider">{activeCard.type === 'character' ? t('writingSession.cardTypeChar') : t('writingSession.cardTypeWorld')}</p>
                                 </div>
                             </div>
                             <button
@@ -1556,7 +1565,7 @@ function WritingSessionContent({ isEmbedded = false }) {
                                     setActiveCard(null);
                                 }}
                                 className="p-2 hover:bg-ink-100 rounded-lg transition-colors text-ink-400 hover:text-ink-700"
-                                title="关闭卡片编辑"
+                                title={t('writingSession.closeCardEdit')}
                             >
                                 <X size={20} />
                             </button>
@@ -1565,7 +1574,7 @@ function WritingSessionContent({ isEmbedded = false }) {
                         <div className="space-y-6 flex-1 overflow-y-auto px-1 pb-20">
                             {/* Common: Name */}
                             <div className="space-y-1">
-                                <label className="text-xs font-bold text-ink-500 tracking-wider">名称</label>
+                                <label className="text-xs font-bold text-ink-500 tracking-wider">{t('card.fieldName')}</label>
                                 <Input
                                     value={cardForm.name}
                                     onChange={e => setCardForm(prev => ({ ...prev, name: e.target.value }))}
@@ -1574,24 +1583,24 @@ function WritingSessionContent({ isEmbedded = false }) {
                             </div>
 
                             <div className="space-y-1">
-                                <label className="text-xs font-bold text-ink-500 tracking-wider">星级</label>
+                                <label className="text-xs font-bold text-ink-500 tracking-wider">{t('card.fieldStars')}</label>
                                 <select
                                     value={cardForm.stars}
                                     onChange={e => setCardForm(prev => ({ ...prev, stars: normalizeStars(e.target.value) }))}
                                     className="w-full h-10 px-3 rounded-[6px] border border-[var(--vscode-input-border)] bg-[var(--vscode-input-bg)] text-sm focus:ring-1 focus:ring-[var(--vscode-focus-border)]"
                                 >
-                                    <option value={3}>三星（必须关注）</option>
-                                    <option value={2}>二星（重要）</option>
-                                    <option value={1}>一星（可选）</option>
+                                    <option value={3}>{t('card.stars3')}</option>
+                                    <option value={2}>{t('card.stars2')}</option>
+                                    <option value={1}>{t('card.stars1')}</option>
                                 </select>
                             </div>
 
                             <div className="space-y-1">
-                                <label className="text-xs font-bold text-ink-500 tracking-wider">别名</label>
+                                <label className="text-xs font-bold text-ink-500 tracking-wider">{t('card.fieldAliases')}</label>
                                 <Input
                                     value={cardForm.aliases || ''}
                                     onChange={e => setCardForm(prev => ({ ...prev, aliases: e.target.value }))}
-                                    placeholder="多个别名用逗号分隔"
+                                    placeholder={t('card.fieldAliasesPlaceholder')}
                                     className="bg-[var(--vscode-input-bg)]"
                                 />
                             </div>
@@ -1599,16 +1608,16 @@ function WritingSessionContent({ isEmbedded = false }) {
                             {activeCard.type === 'world' && (
                                 <>
                                     <div className="space-y-1">
-                                        <label className="text-xs font-bold text-ink-500 tracking-wider">类别</label>
+                                        <label className="text-xs font-bold text-ink-500 tracking-wider">{t('card.fieldCategory')}</label>
                                         <Input
                                             value={cardForm.category || ''}
                                             onChange={e => setCardForm(prev => ({ ...prev, category: e.target.value }))}
-                                            placeholder="世界元素类别"
+                                            placeholder={t('card.categoryPlaceholder')}
                                             className="bg-[var(--vscode-input-bg)]"
                                         />
                                     </div>
                                     <div className="space-y-1">
-                                        <label className="text-xs font-bold text-ink-500 tracking-wider">规则</label>
+                                        <label className="text-xs font-bold text-ink-500 tracking-wider">{t('card.fieldRules')}</label>
                                         <textarea
                                             className="w-full min-h-[140px] p-3 rounded-[6px] border border-[var(--vscode-input-border)] bg-[var(--vscode-input-bg)] text-sm focus:ring-1 focus:ring-[var(--vscode-focus-border)] resize-none overflow-hidden"
                                             value={cardForm.rules || ''}
@@ -1621,19 +1630,19 @@ function WritingSessionContent({ isEmbedded = false }) {
                                                 e.target.style.height = 'auto';
                                                 e.target.style.height = e.target.scrollHeight + 'px';
                                             }}
-                                            placeholder="每行一条规则"
+                                            placeholder={t('card.rulesPlaceholder')}
                                         />
                                     </div>
                                     <div className="space-y-1">
-                                        <label className="text-xs font-bold text-ink-500 tracking-wider">不可变</label>
+                                        <label className="text-xs font-bold text-ink-500 tracking-wider">{t('card.fieldImmutable')}</label>
                                         <select
                                             value={cardForm.immutable}
                                             onChange={e => setCardForm(prev => ({ ...prev, immutable: e.target.value }))}
                                             className="w-full h-10 px-3 rounded-[6px] border border-[var(--vscode-input-border)] bg-[var(--vscode-input-bg)] text-sm focus:ring-1 focus:ring-[var(--vscode-focus-border)]"
                                         >
-                                            <option value="unset">未设置</option>
-                                            <option value="true">不可变</option>
-                                            <option value="false">可变</option>
+                                            <option value="unset">{t('card.immutableUnset')}</option>
+                                            <option value="true">{t('card.immutableTrue')}</option>
+                                            <option value="false">{t('card.immutableFalse')}</option>
                                         </select>
                                     </div>
                                 </>
@@ -1641,7 +1650,7 @@ function WritingSessionContent({ isEmbedded = false }) {
 
                             {/* Card Description */}
                             <div className="space-y-1">
-                                <label className="text-xs font-bold text-ink-500 tracking-wider">描述</label>
+                                <label className="text-xs font-bold text-ink-500 tracking-wider">{t('card.fieldDescription')}</label>
                                 <textarea
                                     className="w-full min-h-[200px] p-3 rounded-[6px] border border-[var(--vscode-input-border)] bg-[var(--vscode-input-bg)] text-sm focus:ring-1 focus:ring-[var(--vscode-focus-border)] resize-none overflow-hidden"
                                     value={cardForm.description || ''}
@@ -1654,7 +1663,7 @@ function WritingSessionContent({ isEmbedded = false }) {
                                         e.target.style.height = 'auto';
                                         e.target.style.height = e.target.scrollHeight + 'px';
                                     }}
-                                    placeholder="请简要描述"
+                                    placeholder={t('card.charDescPlaceholder')}
                                 />
                             </div>
 
@@ -1673,7 +1682,7 @@ function WritingSessionContent({ isEmbedded = false }) {
                                 <span className="brand-logo text-4xl text-ink-900/40">文枢</span>
                             </div>
                             <p className="text-sm text-ink-500">
-                                请在左侧选择资源，或使用快捷键 Cmd+B 切换面板
+                                {t('writingSession.selectResourceHint')}
                             </p>
                         </div>
                     </motion.div>
@@ -1695,7 +1704,7 @@ function WritingSessionContent({ isEmbedded = false }) {
                                     setChapterInfo((prev) => ({ ...prev, chapter_title: e.target.value }));
                                     dispatch({ type: 'SET_UNSAVED' });
                                 }}
-                                placeholder="请输入章节标题"
+                                placeholder={t('writingSession.chapterTitlePlaceholder')}
                                 disabled={!chapterInfo.chapter}
                             />
                         </div>
@@ -1708,8 +1717,8 @@ function WritingSessionContent({ isEmbedded = false }) {
                                     decisions={diffDecisions}
                                     onAcceptHunk={handleAcceptDiffHunk}
                                     onRejectHunk={handleRejectDiffHunk}
-                                    originalVersion="当前正文"
-                                    revisedVersion="修改建议"
+                                    originalVersion={t('writingSession.currentText')}
+                                    revisedVersion={t('writingSession.revisedText')}
                                 />
                             ) : isStreamingForActiveChapter ? (
                                 <StreamingDraftView
@@ -1728,8 +1737,8 @@ function WritingSessionContent({ isEmbedded = false }) {
                                             const key = String(chapterInfo.chapter);
                                             setManualContentByChapter((prev) => ({ ...(prev || {}), [key]: nextValue }));
                                         }
-                                        dispatch({ type: 'SET_WORD_COUNT', payload: countChars(nextValue) });
-                                        const stats = getSelectionStats(nextValue, e.target.selectionStart, e.target.selectionEnd);
+                                        dispatch({ type: 'SET_WORD_COUNT', payload: countWords(nextValue, writingLanguage) });
+                                        const stats = getSelectionStats(nextValue, e.target.selectionStart, e.target.selectionEnd, writingLanguage);
                                         dispatch({ type: 'SET_SELECTION_COUNT', payload: stats.selectionCount });
                                         setSelectionInfo({
                                             start: stats.selectionStart,
@@ -1747,7 +1756,7 @@ function WritingSessionContent({ isEmbedded = false }) {
                                         dispatch({ type: 'SET_UNSAVED' });
                                     }}
                                     onSelect={(e) => {
-                                        const stats = getSelectionStats(e.target.value, e.target.selectionStart, e.target.selectionEnd);
+                                        const stats = getSelectionStats(e.target.value, e.target.selectionStart, e.target.selectionEnd, writingLanguage);
                                         dispatch({ type: 'SET_SELECTION_COUNT', payload: stats.selectionCount });
                                         setSelectionInfo({
                                             start: stats.selectionStart,
@@ -1763,7 +1772,7 @@ function WritingSessionContent({ isEmbedded = false }) {
                                             }
                                         });
                                     }}
-                                    placeholder="开始写作..."
+                                    placeholder={t('writingSession.writePlaceholder')}
                                     disabled={!chapterInfo.chapter || lockedOnActiveChapter}
                                     spellCheck={false}
                                 />
@@ -1785,17 +1794,17 @@ function WritingSessionContent({ isEmbedded = false }) {
                 inputDisabled={agentBusy && String(aiLockedChapter || '') !== activeChapterKey}
                 inputDisabledReason={
                     agentBusy && String(aiLockedChapter || '') !== activeChapterKey
-                        ? `AI 正在撰写第 ${String(aiLockedChapter)} 章：右侧对话已锁定，请切换回该章节继续。`
+                        ? t('writingSession.aiLockedHint').replace('{n}', String(aiLockedChapter))
                         : ''
                 }
                 selectionCandidateSummary={
                     agentMode === 'edit' && selectionInfo?.text?.trim()
-                        ? `已选中 ${countChars(selectionInfo.text)} 字（未添加）`
+                        ? t('writingSession.selectionPending').replace('{n}', countWords(selectionInfo.text, writingLanguage))
                         : ''
                 }
                 selectionAttachedSummary={
                     agentMode === 'edit' && attachedSelection?.text?.trim()
-                        ? `已添加选区 ${countChars(attachedSelection.text)} 字`
+                        ? t('writingSession.selectionAdded').replace('{n}', countWords(attachedSelection.text, writingLanguage))
                         : ''
                 }
                 selectionCandidateDifferent={
@@ -1834,13 +1843,13 @@ function WritingSessionContent({ isEmbedded = false }) {
                 onApplySelectedDiff={handleApplySelectedDiff}
                 onSubmit={(text) => {
                     if (!chapterInfo.chapter) {
-                        addMessage('system', '请先选择章节。');
+                        addMessage('system', t('writingSession.pleaseSelectChapter'));
                         return;
                     }
 
                     if (agentMode === 'create') {
                         if (!canUseWriter) {
-                            addMessage('system', '正文非空：主笔仅在正文为空时可用，请切换到编辑模式。');
+                            addMessage('system', t('writingSession.chapterNotWritable'));
                             setAgentMode('edit');
                             return;
                         }
@@ -1885,8 +1894,8 @@ function WritingSessionContent({ isEmbedded = false }) {
         // Show Card Name in Title if card editing
         chapterTitle: status === 'card_editing'
             ? cardForm.name
-            : (chapterInfo.chapter ? (chapterInfo.chapter_title || `章节 ${chapterInfo.chapter}`) : null),
-        aiHint: agentBusy && aiLockedChapter ? `正在撰写第 ${String(aiLockedChapter)} 章` : null,
+            : (chapterInfo.chapter ? (chapterInfo.chapter_title || t('writingSession.chapterFallback').replace('{n}', chapterInfo.chapter)) : null),
+        aiHint: agentBusy && aiLockedChapter ? t('writingSession.aiLockedStatusHint').replace('{n}', String(aiLockedChapter)) : null,
     };
 
     return (

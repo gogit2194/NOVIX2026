@@ -6,7 +6,7 @@
  * License: PolyForm Noncommercial License 1.0.0
  *
  * 模块说明 / Module Description:
- *   文风设定视图 - 管理项目的写作风格指导与自动提取功能
+ *   t('card.styleTitle')视图 - 管理项目的写作风格指导与自动提取功能
  *   Style view component for managing writing style guidelines and auto-extraction.
  */
 
@@ -15,9 +15,10 @@ import { cardsAPI } from '../../api';
 import { Button, Card } from '../ui/core';
 import { RefreshCw, Feather, Sparkles, Save } from 'lucide-react';
 import logger from '../../utils/logger';
+import { useLocale } from '../../i18n';
 
 /**
- * 文风设定视图组件 - 管理项目的写作风格指导和自动提炼
+ * t('card.styleTitle')视图组件 - 管理项目的写作风格指导和自动提炼
  *
  * Component for managing and editing writing style guidelines for a project.
  * Supports manual input and automatic extraction from sample text.
@@ -30,9 +31,11 @@ import logger from '../../utils/logger';
  *
  * @param {Object} props - Component props
  * @param {string} [props.projectId] - 项目ID / Project identifier
- * @returns {JSX.Element} 文风设定视图 / Style view element
+ * @returns {JSX.Element} t('card.styleTitle')视图 / Style view element
  */
 export function StyleView({ projectId }) {
+  const { t, locale } = useLocale();
+  const requestLanguage = String(locale || '').toLowerCase().startsWith('en') ? 'en' : 'zh';
   const [loading, setLoading] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [formData, setFormData] = useState({
@@ -80,25 +83,25 @@ export function StyleView({ projectId }) {
     e.preventDefault();
     try {
       await cardsAPI.updateStyle(projectId, { style: formData.style || '' });
-      alert('文风设定更新成功');
+      alert(t('card.styleUpdated'));
     } catch (error) {
-      alert('更新文风失败: ' + (error.response?.data?.detail || error.message));
+      alert(t('card.styleUpdateFailed').replace('{message}', error.response?.data?.detail || error.message));
     }
   };
 
   const handleExtract = async () => {
     if (!sampleText.trim()) {
-      alert('请先粘贴用于提炼的文本');
+      alert(t('card.styleSampleRequired'));
       return;
     }
     setExtracting(true);
     try {
-      const response = await cardsAPI.extractStyle(projectId, { content: sampleText });
+      const response = await cardsAPI.extractStyle(projectId, { content: sampleText, language: requestLanguage });
       const style = response.data?.style || '';
       setFormData({ style });
       await cardsAPI.updateStyle(projectId, { style });
     } catch (error) {
-      alert('提炼失败: ' + (error.response?.data?.detail || error.message));
+      alert(t('card.styleExtractFailed').replace('{message}', error.response?.data?.detail || error.message));
     } finally {
       setExtracting(false);
     }
@@ -110,7 +113,7 @@ export function StyleView({ projectId }) {
         <Card className="flex-1 flex flex-col overflow-hidden bg-[var(--vscode-bg)] shadow-none">
           <div className="p-6 border-b border-[var(--vscode-sidebar-border)] bg-[var(--vscode-sidebar-bg)] flex flex-row items-center justify-between">
             <h3 className="font-bold text-lg text-[var(--vscode-fg)] flex items-center gap-2">
-              <Feather size={18} className="text-[var(--vscode-fg-subtle)]" /> 文风设定
+              <Feather size={18} className="text-[var(--vscode-fg-subtle)]" /> {t('card.styleTitle')}
             </h3>
             <Button variant="ghost" size="sm" onClick={loadStyle} disabled={loading}>
               <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
@@ -119,7 +122,7 @@ export function StyleView({ projectId }) {
           <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-8">
             <form id="style-form" onSubmit={handleSubmit} className="space-y-6 max-w-3xl mx-auto">
               <div className="space-y-2">
-                <label className="text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase">文风</label>
+                <label className="text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase">{t('card.styleLabel')}</label>
                 <textarea
                   ref={styleTextareaRef}
                   value={formData.style || ''}
@@ -128,16 +131,16 @@ export function StyleView({ projectId }) {
                     autoResizeTextarea(e.target);
                   }}
                   className="w-full min-h-[220px] text-sm bg-[var(--vscode-input-bg)] border border-[var(--vscode-input-border)] rounded-[6px] px-3 py-2 text-[var(--vscode-fg)] focus:outline-none focus:border-[var(--vscode-focus-border)] resize-none overflow-hidden"
-                  placeholder="写作风格、叙事视角、节奏、用词、氛围等"
+                  placeholder={t('card.stylePlaceholder')}
                 />
               </div>
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase">AI 文风提炼</label>
+                  <label className="text-xs font-bold text-[var(--vscode-fg-subtle)] uppercase">{t('card.styleExtractLabel')}</label>
                   <Button type="button" variant="ghost" size="sm" onClick={handleExtract} disabled={extracting}>
                     <Sparkles size={16} className={extracting ? 'animate-pulse' : ''} />
-                    <span className="ml-2">{extracting ? '提炼中...' : '提炼并覆盖'}</span>
+                    <span className="ml-2">{extracting ? t('card.styleExtracting') : t('card.styleExtractBtn')}</span>
                   </Button>
                 </div>
                 <textarea
@@ -148,14 +151,14 @@ export function StyleView({ projectId }) {
                     autoResizeTextarea(e.target);
                   }}
                   className="w-full min-h-[160px] text-sm bg-[var(--vscode-input-bg)] border border-[var(--vscode-input-border)] rounded-[6px] px-3 py-2 text-[var(--vscode-fg)] focus:outline-none focus:border-[var(--vscode-focus-border)] resize-none overflow-hidden"
-                  placeholder="粘贴你喜欢的文本片段，点击提炼生成文风"
+                  placeholder={t('card.styleSamplePlaceholder')}
                 />
               </div>
             </form>
           </div>
           <div className="p-4 border-t border-[var(--vscode-sidebar-border)] bg-[var(--vscode-sidebar-bg)] flex justify-end">
             <Button form="style-form" type="submit" disabled={loading} className="w-full md:w-auto">
-              <Save size={16} className="mr-2" /> 保存文风设定
+              <Save size={16} className="mr-2" /> {t('card.saveStyle')}
             </Button>
           </div>
         </Card>

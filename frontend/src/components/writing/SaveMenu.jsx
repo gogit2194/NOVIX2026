@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Save, ChevronDown, Sparkles } from 'lucide-react';
 import { cn } from '../ui/core';
+import { useLocale } from '../../i18n';
 
 /**
  * 保存菜单组件 - 提供保存与分析保存的快捷入口
@@ -40,6 +41,7 @@ export default function SaveMenu({
     onSaveOnly,
     onAnalyzeSave,
 }) {
+    const { t } = useLocale();
     const [open, setOpen] = useState(false);
     const menuRef = useRef(null);
 
@@ -89,10 +91,10 @@ export default function SaveMenu({
                         ? 'bg-[var(--vscode-list-hover)] text-[var(--vscode-fg-subtle)]'
                         : 'bg-[var(--vscode-list-active)] text-[var(--vscode-list-active-fg)] hover:opacity-90'
                 )}
-                title="保存"
+                title={t('common.save')}
             >
                 <Save size={14} />
-                <span>{busy ? '保存中...' : '保存'}</span>
+                <span>{busy ? t('common.processing') : t('common.save')}</span>
                 <ChevronDown size={12} className={cn('transition-transform', open && 'rotate-180')} />
             </button>
 
@@ -110,14 +112,14 @@ export default function SaveMenu({
                         className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--vscode-fg)] hover:bg-[var(--vscode-list-hover)] transition-colors"
                     >
                         <Sparkles size={14} className="text-[var(--vscode-focus-border)]" />
-                        <span>分析并保存</span>
+                        <span>{t('writing.saveMenuAnalyze')}</span>
                     </button>
                     <button
                         onClick={() => handleAction('save')}
                         className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--vscode-fg)] hover:bg-[var(--vscode-list-hover)] transition-colors"
                     >
                         <Save size={14} className="text-[var(--vscode-fg-subtle)]" />
-                        <span>仅保存</span>
+                        <span>{t('writing.saveMenuSave')}</span>
                     </button>
                 </div>
             )}

@@ -5,12 +5,14 @@ Project Data Models / 项目数据模型
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field
+from app.schemas.enums import WritingLanguage
 
 
 class ProjectBase(BaseModel):
     """Base project model / 项目基础模型"""
     name: str = Field(..., description="Project name / 项目名称")
     description: Optional[str] = Field(None, description="Project description / 项目描述")
+    language: WritingLanguage = Field(WritingLanguage.CHINESE, description="Writing language / 写作语言")
 
 
 class ProjectCreate(ProjectBase):

@@ -36,8 +36,11 @@ import VolumeTree from '../VolumeTree';
 import { Layers, RefreshCw, Plus, ArrowUpDown } from 'lucide-react';
 import { cn } from '../../ui/core';
 import logger from '../../../utils/logger';
+import { useLocale } from '../../../i18n';
 
 export default function ExplorerPanel({ className }) {
+  const { t, locale } = useLocale();
+  const requestLanguage = String(locale || '').toLowerCase().startsWith('en') ? 'en' : 'zh';
   const { state, dispatch } = useIDE();
   const [syncOpen, setSyncOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -59,12 +62,12 @@ export default function ExplorerPanel({ className }) {
     setSyncResults([]);
     setSyncLoading(true);
     try {
-      const res = await sessionAPI.analyzeSync(state.activeProjectId, { chapters: selectedChapters });
+      const res = await sessionAPI.analyzeSync(state.activeProjectId, { language: requestLanguage, chapters: selectedChapters });
       const payload = Array.isArray(res.data)
         ? { success: true, results: res.data }
         : (res.data || {});
       if (!payload?.success) {
-        throw new Error(payload?.error || payload?.detail || '同步失败');
+        throw new Error(payload?.error || payload?.detail || t('writingSession.syncFailed'));
       }
       const results = Array.isArray(payload?.results) ? payload.results : [];
       const analyses = results
@@ -80,7 +83,7 @@ export default function ExplorerPanel({ className }) {
           } catch (error) {
             return {
               ...item,
-              binding_error: error?.response?.data?.detail || error?.message || '读取绑定失败',
+              binding_error: error?.response?.data?.detail || error?.message || t('error.loadFailed'),
             };
           }
         })
@@ -95,7 +98,7 @@ export default function ExplorerPanel({ className }) {
     } catch (err) {
       logger.error(err);
       const detail = err?.response?.data?.detail || err?.response?.data?.error;
-      setSyncError(detail || err?.message || '同步失败');
+      setSyncError(detail || err?.message || t('writingSession.syncFailed'));
     } finally {
       setSyncLoading(false);
     }
@@ -111,13 +114,13 @@ export default function ExplorerPanel({ className }) {
         chapters: selectedChapters.length > 0 ? selectedChapters : undefined
       });
       if (!res.data?.success) {
-        throw new Error(res.data?.error || '重建失败');
+        throw new Error(res.data?.error || t('error.loadFailed'));
       }
       const results = Array.isArray(res.data?.results) ? res.data.results : [];
       setSyncResults(results);
     } catch (err) {
       logger.error(err);
-      setSyncError(err?.message || '重建失败');
+      setSyncError(err?.message || t('error.loadFailed'));
     } finally {
       setSyncLoading(false);
     }
@@ -135,7 +138,7 @@ export default function ExplorerPanel({ className }) {
     } catch (err) {
       logger.error(err);
       const detail = err?.response?.data?.detail || err?.response?.data?.error;
-      setIndexRebuildError(detail || err?.message || '重建失败');
+      setIndexRebuildError(detail || err?.message || t('error.loadFailed'));
     } finally {
       setIndexRebuildLoading(false);
     }
@@ -146,11 +149,12 @@ export default function ExplorerPanel({ className }) {
     setReviewError('');
     try {
       const resp = await sessionAPI.saveAnalysisBatch(state.activeProjectId, {
+        language: requestLanguage,
         items: updatedAnalyses,
         overwrite: true,
       });
       if (resp?.data?.success === false) {
-        throw new Error(resp?.data?.error || resp?.data?.detail || '保存失败');
+        throw new Error(resp?.data?.error || resp?.data?.detail || t('error.saveFailed'));
       }
       setReviewOpen(false);
       setReviewItems([]);
@@ -159,9 +163,9 @@ export default function ExplorerPanel({ className }) {
       const detail = err?.response?.data?.detail || err?.response?.data?.error;
       const code = err?.code || err?.name;
       if (code === 'ECONNABORTED') {
-        setReviewError('保存超时：可能已保存成功，可稍后刷新确认。');
+        setReviewError(t('panels.explorer.saveTimeout'));
       } else {
-        setReviewError(detail || err?.message || '保存失败');
+        setReviewError(detail || err?.message || t('error.saveFailed'));
       }
     } finally {
       setReviewSaving(false);
@@ -192,7 +196,7 @@ export default function ExplorerPanel({ className }) {
     <div className={cn('anti-theme explorer-panel flex flex-col h-full bg-[var(--vscode-bg)] text-[var(--vscode-fg)] select-none', className)}>
       {/* VS Code 风格工具栏 */}
       <div className="flex items-center h-[35px] px-4 font-sans text-[11px] font-bold tracking-wide text-[var(--vscode-fg-subtle)] uppercase bg-[var(--vscode-sidebar-bg)] border-b border-[var(--vscode-sidebar-border)]">
-        <span>资源管理器</span>
+        <span>{t('panels.explorer.title')}</span>
         <div className="flex-1" />
 
         {/* 右侧工具按钮 */}
@@ -200,12 +204,12 @@ export default function ExplorerPanel({ className }) {
           <ActionButton
             onClick={() => setReorderMode((prev) => !prev)}
             icon={ArrowUpDown}
-            title={reorderMode ? "完成排序" : "调整顺序"}
+            title={reorderMode ? t('panels.explorer.exitReorder') : t('panels.explorer.reorderMode')}
           />
           <ActionButton
             onClick={() => dispatch({ type: 'OPEN_CREATE_CHAPTER_DIALOG', payload: { volumeId: state.selectedVolumeId } })}
             icon={Plus}
-            title="新建章节"
+            title={t('panels.explorer.newChapter')}
           />
           <ActionButton
             onClick={() => {
@@ -216,12 +220,12 @@ export default function ExplorerPanel({ className }) {
               setSyncOpen(true);
             }}
             icon={RefreshCw}
-            title="同步分析"
+            title={t('panels.explorer.syncAll')}
           />
           <ActionButton
             onClick={() => setVolumeManageOpen(true)}
             icon={Layers}
-            title="分卷管理"
+            title={t('panels.explorer.manageVolumes')}
           />
         </div>
       </div>

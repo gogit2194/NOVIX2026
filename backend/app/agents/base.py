@@ -41,7 +41,8 @@ class BaseAgent(ABC):
         gateway: LLMGateway,
         card_storage: CardStorage,
         canon_storage: CanonStorage,
-        draft_storage: DraftStorage
+        draft_storage: DraftStorage,
+        language: str = "zh",
     ):
         """
         初始化智能体 - 注入所有依赖
@@ -53,11 +54,13 @@ class BaseAgent(ABC):
             card_storage: Card storage instance for character/world cards.
             canon_storage: Canon storage instance for facts and settings.
             draft_storage: Draft storage instance for chapters and summaries.
+            language: Writing language ("zh" for Chinese, "en" for English).
         """
         self.gateway = gateway
         self.card_storage = card_storage
         self.canon_storage = canon_storage
         self.draft_storage = draft_storage
+        self.language = language
 
     @abstractmethod
     async def execute(
@@ -102,7 +105,7 @@ class BaseAgent(ABC):
         Returns:
             System prompt string customized for the agent type.
         """
-        return base_agent_system_prompt(self.get_agent_name())
+        return base_agent_system_prompt(self.get_agent_name(), language=self.language)
     
     async def call_llm(
         self,
@@ -273,7 +276,7 @@ class BaseAgent(ABC):
         if context_items:
             messages.append({
                 "role": "user",
-                "content": format_context_message(context_items)
+                "content": format_context_message(context_items, language=self.language)
             })
 
         # Add main user prompt

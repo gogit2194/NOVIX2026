@@ -10,9 +10,11 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronDown, Send, Sparkles, Copy, X } from 'lucide-react';
+import { useLocale } from '../../i18n';
 
 // 消息项组件
 const MessageItem = ({ type, content, time }) => {
+    const { t } = useLocale();
     const styles = {
         user: 'bg-[var(--vscode-list-active)] text-[var(--vscode-list-active-fg)] ml-8 border border-[var(--vscode-input-border)]',
         assistant: 'bg-[var(--vscode-input-bg)] text-[var(--vscode-fg)] border border-[var(--vscode-sidebar-border)] mr-8',
@@ -29,7 +31,7 @@ const MessageItem = ({ type, content, time }) => {
             {content}
             {time && (
                 <span className="ml-2 opacity-50 text-[10px]">
-                    {time.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                    {time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
                 </span>
             )}
         </motion.div>
@@ -44,15 +46,16 @@ const RunCard = ({
     formatTime,
     formatSource,
 }) => {
+    const { t } = useLocale();
     const headerTime = run.startedAt ? formatTime(run.startedAt) : '';
     return (
         <div className="border border-[var(--vscode-sidebar-border)] rounded-[6px] bg-[var(--vscode-input-bg)] my-2 overflow-hidden">
             <div className="px-3 py-2 border-b border-[var(--vscode-sidebar-border)] bg-[var(--vscode-sidebar-bg)]">
                 <div className="flex items-start justify-between gap-2">
                     <div className="flex flex-col gap-1 min-w-0">
-                        <div className="text-[10px] text-[var(--vscode-fg-subtle)]">指令</div>
+                        <div className="text-[10px] text-[var(--vscode-fg-subtle)]">{run.userContent ? t('agentPanel.instruction') : t('agentPanel.systemMsg')}</div>
                         <div className="text-xs text-[var(--vscode-fg)] whitespace-pre-wrap break-words">
-                            {run.userContent || '（系统）'}
+                            {run.userContent || t('agentPanel.systemMsg')}
                         </div>
                     </div>
                     {headerTime ? (
@@ -71,7 +74,7 @@ const RunCard = ({
 
             {run.progressEvents.length > 0 ? (
                 <div className="px-3 pb-3">
-                    <div className="text-[10px] text-[var(--vscode-fg-subtle)] mb-1">行动轨迹</div>
+                    <div className="text-[10px] text-[var(--vscode-fg-subtle)] mb-1">{t('agentPanel.actionTrace')}</div>
                     <div className="space-y-1">
                         {run.progressEvents.map((event) => {
                             const hasDetails =
@@ -109,7 +112,7 @@ const RunCard = ({
 
                                             {(Array.isArray(event.queries) && event.queries.length > 0) ? (
                                                 <div>
-                                                    <div className="text-[10px] text-[var(--vscode-fg-subtle)] mb-1">查询</div>
+                                                    <div className="text-[10px] text-[var(--vscode-fg-subtle)] mb-1">{t('agentPanel.queries')}</div>
                                                     <div className="flex flex-wrap gap-1">
                                                         {event.queries.map((q, idx) => (
                                                             <span
@@ -124,12 +127,12 @@ const RunCard = ({
                                             ) : null}
 
                                             {typeof event.hits === 'number' ? (
-                                                <div className="text-[10px] text-[var(--vscode-fg-subtle)]">命中：{event.hits}</div>
+                                                <div className="text-[10px] text-[var(--vscode-fg-subtle)]">{t('agentPanel.hits').replace('{count}', String(event.hits))}</div>
                                             ) : null}
 
                                             {(Array.isArray(event.top_sources) && event.top_sources.length > 0) ? (
                                                 <div>
-                                                    <div className="text-[10px] text-[var(--vscode-fg-subtle)] mb-1">命中摘要</div>
+                                                    <div className="text-[10px] text-[var(--vscode-fg-subtle)] mb-1">{t('agentPanel.hitSummary')}</div>
                                                     <div className="pt-1 space-y-1">
                                                         {event.top_sources.slice(0, 8).map((source, index) => (
                                                             <div key={`${event.id}-src-${index}`} className="text-[10px]">
@@ -148,12 +151,12 @@ const RunCard = ({
                                             ) : null}
 
                                             {event.stop_reason ? (
-                                                <div className="text-[10px] text-[var(--vscode-fg-subtle)]">停止原因：{event.stop_reason}</div>
+                                                <div className="text-[10px] text-[var(--vscode-fg-subtle)]">{t('agentPanel.stopReason')}：{event.stop_reason}</div>
                                             ) : null}
 
                                             {event.payload !== undefined ? (
                                                 <div>
-                                                    <div className="text-[10px] text-[var(--vscode-fg-subtle)] mb-1">详情</div>
+                                                    <div className="text-[10px] text-[var(--vscode-fg-subtle)] mb-1">{t('agentPanel.details')}</div>
                                                     <div className="bg-[var(--vscode-input-bg)] border border-[var(--vscode-sidebar-border)] rounded-[6px] p-3 max-h-64 overflow-y-auto custom-scrollbar">
                                                         <pre className="text-[10px] text-[var(--vscode-fg-subtle)] font-mono whitespace-pre-wrap break-words">
                                                             {typeof event.payload === 'string' ? event.payload : JSON.stringify(event.payload, null, 2)}
@@ -207,6 +210,7 @@ const AgentStatusPanel = ({
     const [expandedTrace, setExpandedTrace] = useState({});
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
+    const { t, locale } = useLocale();
 
     const runs = useMemo(() => {
         const combined = [];
@@ -352,15 +356,15 @@ const AgentStatusPanel = ({
         if (!contextDebug) return;
         const text = typeof contextDebug === 'string' ? contextDebug : JSON.stringify(contextDebug, null, 2);
         if (!navigator?.clipboard?.writeText) {
-            window.alert('当前环境不支持剪贴板复制');
+            window.alert(t('agentPanel.clipboardNotSupported'));
             return;
         }
         try {
             await navigator.clipboard.writeText(text);
-            setCopyStatus('已复制');
+            setCopyStatus(t('common.copied'));
             setTimeout(() => setCopyStatus(''), 1500);
         } catch (error) {
-            setCopyStatus('复制失败');
+            setCopyStatus(t('common.copyFailed'));
             setTimeout(() => setCopyStatus(''), 2000);
         }
     };
@@ -370,25 +374,9 @@ const AgentStatusPanel = ({
     };
 
     const formatStageLabel = (stage) => {
-        const mapping = {
-            read_previous: '阅读前文',
-            read_facts: '检索事实摘要',
-            lookup_cards: '查询设定',
-            prepare_retrieval: '准备检索',
-            generate_plan: '生成研究计划',
-            execute_retrieval: '执行检索',
-            self_check: '证据自检',
-            memory_pack: '记忆包',
-            writing: '撰写',
-            persist: '保存',
-            session_start: '启动会话',
-            scene_brief: '场景简报',
-            edit_suggest: '生成修改建议',
-            edit_suggest_done: '修改建议完成',
-            system: '系统',
-            connection: '连接',
-        };
-        return mapping[stage] || stage || '进度';
+        return t(`agentPanel.stageLabels.${stage}`) !== `agentPanel.stageLabels.${stage}`
+            ? t(`agentPanel.stageLabels.${stage}`)
+            : (stage || t('agentPanel.stageLabels.default'));
     };
 
     const formatSource = (source) => {
@@ -407,37 +395,37 @@ const AgentStatusPanel = ({
     const formatTime = (timestamp) => {
         if (!timestamp) return '';
         const date = new Date(timestamp);
-        return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     };
 
     const formatBuiltAt = (value) => {
         if (!value) return '';
         const date = new Date(value);
-        return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
     };
 
     const memoryPackSummary = useMemo(() => {
         if (!activeChapter) {
-            return { label: '记忆包：未选择章节', detail: '' };
+            return { label: t('agentPanel.memoryPackNoChapter'), detail: '' };
         }
         if (!memoryPackStatus) {
-            return { label: '记忆包：加载中...', detail: '' };
+            return { label: t('agentPanel.memoryPackLoading'), detail: '' };
         }
         if (!memoryPackStatus.exists) {
-            return { label: '记忆包：未生成', detail: '' };
+            return { label: t('agentPanel.memoryPackMissing'), detail: '' };
         }
         const detailParts = [];
         const builtAt = formatBuiltAt(memoryPackStatus.built_at);
-        if (builtAt) detailParts.push(`生成时间 ${builtAt}`);
+        if (builtAt) detailParts.push(t('agentPanel.memoryPackBuiltAt').replace('{time}', builtAt));
         const total = memoryPackStatus?.evidence_stats?.total;
-        if (typeof total === 'number') detailParts.push(`证据 ${total}`);
+        if (typeof total === 'number') detailParts.push(t('agentPanel.memoryPackEvidence').replace('{count}', String(total)));
         const source = memoryPackStatus?.source;
-        if (source) detailParts.push(`来源 ${source}`);
+        if (source) detailParts.push(t('agentPanel.memoryPackSource').replace('{source}', source));
         return {
-            label: '记忆包：已生成',
+            label: t('agentPanel.memoryPackReady'),
             detail: detailParts.join(' / ')
         };
-    }, [activeChapter, memoryPackStatus]);
+    }, [activeChapter, memoryPackStatus, t, locale]);
 
     return (
         <div className={`flex flex-col h-full ${className}`}>
@@ -455,9 +443,9 @@ const AgentStatusPanel = ({
                         <div className="w-16 h-16 rounded-[6px] bg-[var(--vscode-list-hover)] border border-[var(--vscode-sidebar-border)] flex items-center justify-center mb-4">
                             <Sparkles size={28} className="text-[var(--vscode-focus-border)]" />
                         </div>
-                        <h3 className="text-sm font-bold text-[var(--vscode-fg)] mb-2">开始创作</h3>
+                        <h3 className="text-sm font-bold text-[var(--vscode-fg)] mb-2">{t('agentPanel.welcome')}</h3>
                         <p className="text-xs text-[var(--vscode-fg-subtle)] max-w-[200px]">
-                            选择章节后，在下方输入创作指令开始生成，或直接输入修改意见
+                            {t('agentPanel.welcomeHint')}
                         </p>
                     </div>
                 ) : (
@@ -466,17 +454,17 @@ const AgentStatusPanel = ({
                             <div className="border border-[var(--vscode-sidebar-border)] rounded-[6px] bg-[var(--vscode-input-bg)] my-2 overflow-hidden">
                                 <div className="px-3 py-2 border-b border-[var(--vscode-sidebar-border)] bg-[var(--vscode-sidebar-bg)]">
                                     <div className="flex items-center justify-between">
-                                        <div className="text-xs font-bold text-[var(--vscode-fg)]">修改完成</div>
+                                        <div className="text-xs font-bold text-[var(--vscode-fg)]">{t('agentPanel.diffDone')}</div>
                                         <div className="text-[10px] text-[var(--vscode-fg-subtle)]">
-                                            {diffSummary.additions} 新增 / {diffSummary.deletions} 删除
+                                            {t('agentPanel.diffStats').replace('{add}', diffSummary.additions).replace('{del}', diffSummary.deletions)}
                                         </div>
                                     </div>
                                     <div className="text-[10px] text-[var(--vscode-fg-subtle)] mt-1">
-                                        共 {diffSummary.total} 处修改，已接受 {diffSummary.accepted}，已拒绝 {diffSummary.rejected}，待确认 {diffSummary.pending}
+                                        {t('agentPanel.diffSummary').replace('{total}', diffSummary.total).replace('{accepted}', diffSummary.accepted).replace('{rejected}', diffSummary.rejected).replace('{pending}', diffSummary.pending)}
                                     </div>
                                 </div>
                                 <div className="px-3 py-2 text-[10px] text-[var(--vscode-fg-subtle)]">
-                                    可逐块调整后选择“应用已接受修改”，或直接全部接受/拒绝。
+                                    {t('agentPanel.diffHint')}
                                 </div>
                                 <div className="px-3 pb-3 flex flex-wrap gap-2">
                                     <button
@@ -484,21 +472,21 @@ const AgentStatusPanel = ({
                                         onClick={onRejectAllDiff}
                                         className="text-[10px] px-3 py-1.5 rounded-[6px] border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
                                     >
-                                        拒绝全部
+                                        {t('agentPanel.rejectAll')}
                                     </button>
                                     <button
                                         type="button"
                                         onClick={onAcceptAllDiff}
                                         className="text-[10px] px-3 py-1.5 rounded-[6px] border border-green-200 text-green-700 hover:bg-green-50 transition-colors"
                                     >
-                                        接受全部
+                                        {t('agentPanel.acceptAll')}
                                     </button>
                                     <button
                                         type="button"
                                         onClick={onApplySelectedDiff}
                                         className="text-[10px] px-3 py-1.5 rounded-[6px] border border-[var(--vscode-input-border)] bg-[var(--vscode-list-active)] text-[var(--vscode-list-active-fg)] hover:opacity-90 transition-colors"
                                     >
-                                        应用已接受修改
+                                        {t('agentPanel.applyAccepted')}
                                     </button>
                                 </div>
                             </div>
@@ -531,10 +519,10 @@ const AgentStatusPanel = ({
                                         >
                                             <div className="flex flex-col gap-1">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-xs font-bold text-[var(--vscode-fg)]">工作记忆</span>
-                                                    <span className="text-[10px] text-[var(--vscode-fg-subtle)]">可展开查看</span>
+                                                    <span className="text-xs font-bold text-[var(--vscode-fg)]">{t('agentPanel.workingMemory')}</span>
+                                                    <span className="text-[10px] text-[var(--vscode-fg-subtle)]">{t('agentPanel.workingMemoryHint')}</span>
                                                 </div>
-                                                <div className="text-xs text-[var(--vscode-fg-subtle)]">证据与缺口摘要（用于对齐与调试）</div>
+                                                <div className="text-xs text-[var(--vscode-fg-subtle)]">{t('agentPanel.workingMemoryDesc')}</div>
                                             </div>
                                             <div className="flex items-center gap-2 text-[10px] text-[var(--vscode-fg-subtle)]">
                                                 <button
@@ -543,11 +531,11 @@ const AgentStatusPanel = ({
                                                         event.stopPropagation();
                                                         handleCopyContextDebug();
                                                     }}
-                                                    title="复制(JSON)"
+                                                    title={t('agentPanel.copyJson')}
                                                     className="flex items-center gap-1 px-2 py-1 rounded-[6px] border border-[var(--vscode-sidebar-border)] bg-[var(--vscode-input-bg)] hover:border-[var(--vscode-focus-border)]"
                                                 >
                                                     <Copy size={12} />
-                                                    <span>{copyStatus || '复制'}</span>
+                                                    <span>{copyStatus || t('common.copy')}</span>
                                                 </button>
                                                 <motion.div
                                                     animate={{ rotate: expanded ? 180 : 0 }}
@@ -587,7 +575,7 @@ const AgentStatusPanel = ({
                         type="button"
                         onClick={() => onModeChange('create')}
                             disabled={createDisabled || inputDisabled}
-                            title={createDisabled ? '正文非空：主笔仅在正文为空时可用' : '主笔：用于撰写新正文（流式输出）'}
+                            title={createDisabled ? t('agentPanel.modeWriterTitle') : t('agentPanel.modeWriterHint')}
                             className={[
                                 "px-2.5 h-7 text-[11px] rounded-[6px] border transition-colors",
                                 mode === 'create'
@@ -596,12 +584,12 @@ const AgentStatusPanel = ({
                                 (createDisabled || inputDisabled) ? "opacity-50 cursor-not-allowed" : ""
                             ].join(' ')}
                         >
-                        主笔
+                        {t('agentPanel.modeWriter')}
                     </button>
                     <button
                         type="button"
                         onClick={() => onModeChange('edit')}
-                        title="编辑：生成差异块，可选择接受或撤销"
+                        title={t('agentPanel.modeEditorHint')}
                         disabled={inputDisabled}
                             className={[
                                 "px-2.5 h-7 text-[11px] rounded-[6px] border transition-colors",
@@ -611,14 +599,14 @@ const AgentStatusPanel = ({
                                 inputDisabled ? "opacity-50 cursor-not-allowed" : ""
                             ].join(' ')}
                         >
-                        编辑
+                        {t('agentPanel.modeEditor')}
                     </button>
                     {mode === 'edit' ? (
                         <div className="ml-2 flex items-center gap-1">
                             <button
                                 type="button"
                                 onClick={() => onEditContextModeChange('quick')}
-                                title="快速：直接使用本章最新记忆包（不重建）"
+                                title={t('agentPanel.contextQuickHint')}
                                 disabled={inputDisabled}
                                 className={[
                                     "px-2 h-7 text-[11px] rounded-[6px] border transition-colors",
@@ -628,12 +616,12 @@ const AgentStatusPanel = ({
                                     inputDisabled ? "opacity-50 cursor-not-allowed" : ""
                                 ].join(' ')}
                             >
-                                快速
+                                {t('agentPanel.contextQuick')}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => onEditContextModeChange('full')}
-                                title="完整：先重建本章记忆包（更接近完整检索/分析）"
+                                title={t('agentPanel.contextFullHint')}
                                 disabled={inputDisabled}
                                 className={[
                                     "px-2 h-7 text-[11px] rounded-[6px] border transition-colors",
@@ -643,19 +631,19 @@ const AgentStatusPanel = ({
                                     inputDisabled ? "opacity-50 cursor-not-allowed" : ""
                                 ].join(' ')}
                             >
-                                完整
+                                {t('agentPanel.contextFull')}
                             </button>
                         </div>
                     ) : null}
                 </div>
                 <span className="text-[10px] text-[var(--vscode-fg-subtle)]">
-                    {mode === 'edit' ? '差异修改' : '流式撰写'}
+                    {mode === 'edit' ? t('agentPanel.modeTagDiff') : t('agentPanel.modeTagStream')}
                 </span>
                 </div>
                 {mode === 'edit' ? (
                     <div className="flex items-center justify-between mb-2 gap-2">
                         <div className="text-[10px] text-[var(--vscode-fg-subtle)]">
-                            {selectionCandidateSummary || '未选中内容'}
+                            {selectionCandidateSummary || t('agentPanel.noSelection')}
                         </div>
                         {selectionCandidateSummary ? (
                             <div className="flex items-center gap-1">
@@ -670,9 +658,9 @@ const AgentStatusPanel = ({
                                             : "bg-[var(--vscode-input-bg)] text-[var(--vscode-fg)] border-[var(--vscode-sidebar-border)] hover:border-[var(--vscode-focus-border)]",
                                         inputDisabled ? "opacity-50 cursor-not-allowed" : ""
                                     ].join(' ')}
-                                    title="对全章生成差异修改"
+                                    title={t('agentPanel.scopeDocumentHint')}
                                 >
-                                    全章
+                                    {t('agentPanel.scopeDocument')}
                                 </button>
                                 <button
                                     type="button"
@@ -685,9 +673,9 @@ const AgentStatusPanel = ({
                                             : "bg-[var(--vscode-input-bg)] text-[var(--vscode-fg)] border-[var(--vscode-sidebar-border)] hover:border-[var(--vscode-focus-border)]",
                                         (inputDisabled || !selectionAttachedSummary) ? "opacity-50 cursor-not-allowed" : ""
                                     ].join(' ')}
-                                    title={selectionAttachedSummary ? "仅对已添加的选区生成差异修改（更稳定）" : "请先点击“添加到对话”"}
+                                    title={selectionAttachedSummary ? t('agentPanel.scopeSelectionHint') : t('agentPanel.scopeSelectionDisabledHint')}
                                 >
-                                    选区
+                                    {t('agentPanel.scopeSelection')}
                                 </button>
                                 <button
                                     type="button"
@@ -698,9 +686,9 @@ const AgentStatusPanel = ({
                                         "bg-[var(--vscode-input-bg)] text-[var(--vscode-fg)] border-[var(--vscode-sidebar-border)] hover:border-[var(--vscode-focus-border)]",
                                         (inputDisabled || (selectionAttachedSummary && !selectionCandidateDifferent)) ? "opacity-50 cursor-not-allowed" : ""
                                     ].join(' ')}
-                                    title="将当前选区添加到对话（后续编辑会使用该选区）"
+                                    title={t('agentPanel.scopeDocumentHint')}
                                 >
-                                    {selectionAttachedSummary ? (selectionCandidateDifferent ? '替换选区' : '已添加') : '添加到对话'}
+                                    {selectionAttachedSummary ? (selectionCandidateDifferent ? t('agentPanel.replaceSelection') : t('agentPanel.selectionAttached')) : t('agentPanel.attachSelection')}
                                 </button>
                             </div>
                         ) : null}
@@ -719,8 +707,8 @@ const AgentStatusPanel = ({
                                 "p-1 rounded-[6px] border border-[var(--vscode-sidebar-border)] bg-[var(--vscode-input-bg)] text-[var(--vscode-fg-subtle)] hover:text-[var(--vscode-fg)] hover:border-[var(--vscode-focus-border)] transition-colors",
                                 inputDisabled ? "opacity-50 cursor-not-allowed" : ""
                             ].join(' ')}
-                            title="撤销添加选区"
-                            aria-label="撤销添加选区"
+                            title={t('agentPanel.clearSelection')}
+                            aria-label={t('agentPanel.clearSelection')}
                         >
                             <X size={14} />
                         </button>
@@ -744,7 +732,7 @@ const AgentStatusPanel = ({
                             onKeyDown={handleKeyDown}
                             onFocus={(e) => updateInputHeight(e.target)}
                             disabled={inputDisabled}
-                            placeholder={mode === 'edit' ? "输入修改指令（将生成差异块）..." : "输入本章创作指令（正文需为空）..."}
+                            placeholder={mode === 'edit' ? t('agentPanel.inputPlaceholderEdit') : t('agentPanel.inputPlaceholderCreate')}
                             className={[
                                 "flex-1 px-3 py-2 text-sm border border-[var(--vscode-input-border)] rounded-[6px] bg-[var(--vscode-input-bg)] text-[var(--vscode-fg)] focus:outline-none focus:ring-1 focus:ring-[var(--vscode-focus-border)] focus:border-[var(--vscode-focus-border)] resize-none overflow-hidden min-h-[40px]",
                                 inputDisabled ? "opacity-60 cursor-not-allowed" : ""

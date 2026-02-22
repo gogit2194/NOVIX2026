@@ -6,35 +6,15 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../ui/core';
+import { useLocale } from '../../../i18n';
 
 // --- 本地化映射 ---
-
-const AGENT_NAMES = {
-    archivist: '档案员',
-    writer: '撰稿人',
-    editor: '编辑',
-    orchestrator: '指挥官'
-};
 
 const AGENT_COLORS = {
     archivist: '#8b5cf6', // Indigo/Purple
     writer: '#3b82f6',    // Blue
     editor: '#10b981',    // Emerald
     orchestrator: '#64748b' // Slate
-};
-
-const EVENT_LABELS = {
-    context_select: '检索上下文',
-    context_compress: '压缩上下文',
-    context_health_check: '健康检查',
-    tool_call: '调用工具',
-    tool_result: '工具返回',
-    llm_request: '大模型生成',
-    handoff: '交接',
-    diff_generated: '内容变更',
-    agent_start: '任务开始',
-    agent_end: '任务结束',
-    agent_error: '任务异常'
 };
 
 const EVENT_ICONS = {
@@ -126,7 +106,15 @@ const groupEventsByTurn = (events) => {
 
 // --- 子组件 ---
 
-const HandoffSeparator = ({ data }) => (
+const HandoffSeparator = ({ data }) => {
+    const { t } = useLocale();
+    const AGENT_NAMES = {
+        archivist: t('panels.timeline.agentArchivist'),
+        writer: t('panels.timeline.agentWriter'),
+        editor: t('panels.timeline.agentEditor'),
+        orchestrator: t('panels.timeline.agentOrchestrator'),
+    };
+    return (
     <div className="flex items-center justify-center my-4 opacity-70">
         <div className="h-[1px] bg-[var(--vscode-sidebar-border)] flex-1 mx-4" />
         <div className="flex items-center gap-2 text-[10px] text-[var(--vscode-fg-subtle)] bg-[var(--vscode-bg)] px-3 py-1 rounded-full border border-[var(--vscode-sidebar-border)]">
@@ -136,9 +124,17 @@ const HandoffSeparator = ({ data }) => (
         </div>
         <div className="h-[1px] bg-[var(--vscode-sidebar-border)] flex-1 mx-4" />
     </div>
-);
+    );
+};
 
 const TurnCard = ({ turn, expanded, onToggle }) => {
+    const { t } = useLocale();
+    const AGENT_NAMES = {
+        archivist: t('panels.timeline.agentArchivist'),
+        writer: t('panels.timeline.agentWriter'),
+        editor: t('panels.timeline.agentEditor'),
+        orchestrator: t('panels.timeline.agentOrchestrator'),
+    };
     const agentColor = AGENT_COLORS[turn.agent] || '#6b7280';
     const localizedName = AGENT_NAMES[turn.agent] || turn.agent;
 
@@ -153,7 +149,7 @@ const TurnCard = ({ turn, expanded, onToggle }) => {
             <div
                 onClick={onToggle}
                 className="p-3 flex items-center justify-between cursor-pointer bg-[var(--vscode-sidebar-bg)] hover:bg-[var(--vscode-list-hover)] transition-colors"
-                title="点击展开详情"
+                title={t('panels.timeline.expandDetails')}
             >
                 <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: agentColor }}>
@@ -167,7 +163,7 @@ const TurnCard = ({ turn, expanded, onToggle }) => {
                         <div className="flex items-center gap-3 mt-1 text-[10px] text-[var(--vscode-fg-subtle)]">
                             {turn.duration && <span>⏱️ {turn.duration}s</span>}
                             {turn.metrics.tokens > 0 && <span>💎 {turn.metrics.tokens} Tok</span>}
-                            {turn.metrics.diffs > 0 && <span>📝 {turn.metrics.diffs} 变更</span>}
+                            {turn.metrics.diffs > 0 && <span>📝 {turn.metrics.diffs} {t('panels.timeline.diffs')}</span>}
                         </div>
                     </div>
                 </div>
@@ -198,13 +194,28 @@ const TurnCard = ({ turn, expanded, onToggle }) => {
 };
 
 const StatusBadge = ({ status }) => {
-    if (status === 'running') return <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded animate-pulse">● 运行中</span>;
-    if (status === 'completed') return <span className="text-[10px] text-green-600 bg-green-50 px-1.5 py-0.5 rounded">✓ 完成</span>;
-    if (status === 'failed') return <span className="text-[10px] text-red-600 bg-red-50 px-1.5 py-0.5 rounded">✗ 失败</span>;
+    const { t } = useLocale();
+    if (status === 'running') return <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded animate-pulse">● {t('panels.timeline.statusRunning')}</span>;
+    if (status === 'completed') return <span className="text-[10px] text-green-600 bg-green-50 px-1.5 py-0.5 rounded">{t('panels.timeline.statusCompleted')}</span>;
+    if (status === 'failed') return <span className="text-[10px] text-red-600 bg-red-50 px-1.5 py-0.5 rounded">{t('panels.timeline.statusFailed')}</span>;
     return null;
 };
 
 const DetailEventRow = ({ event }) => {
+    const { t } = useLocale();
+    const EVENT_LABELS = {
+        context_select: t('panels.timeline.eventContextSelect'),
+        context_compress: t('panels.timeline.eventContextCompress'),
+        context_health_check: t('panels.timeline.eventHealthCheck'),
+        tool_call: t('panels.timeline.eventToolCall'),
+        tool_result: t('panels.timeline.eventToolResult'),
+        llm_request: t('panels.timeline.eventLlmRequest'),
+        handoff: t('panels.timeline.eventHandoff'),
+        diff_generated: t('panels.timeline.eventDiffGenerated'),
+        agent_start: t('panels.timeline.eventAgentStart'),
+        agent_end: t('panels.timeline.eventAgentEnd'),
+        agent_error: t('panels.timeline.eventAgentError'),
+    };
     // 详情中忽略 start/end（已在卡片体现）
     if (event.type === 'agent_start' || event.type === 'agent_end') return null;
 
@@ -230,15 +241,16 @@ const DetailEventRow = ({ event }) => {
 };
 
 const EventPayloadRenderer = ({ event }) => {
+    const { t } = useLocale();
     const { type, data } = event;
 
     if (type === 'llm_request') {
         return (
             <div className="text-[10px] bg-[var(--vscode-input-bg)] p-2 rounded-[4px] border border-[var(--vscode-sidebar-border)] font-mono text-[var(--vscode-fg-subtle)]">
-                <div>模型：{data.model}</div>
+                <div>{t('panels.timeline.labelModel')}{data.model}</div>
                 <div className="flex gap-2 mt-1">
-                    <span className="text-blue-600">输入：{data.tokens?.prompt}</span>
-                    <span className="text-green-600">输出：{data.tokens?.completion}</span>
+                    <span className="text-blue-600">{t('panels.timeline.labelInput')}{data.tokens?.prompt}</span>
+                    <span className="text-green-600">{t('panels.timeline.labelOutput')}{data.tokens?.completion}</span>
                     <span className="text-[var(--vscode-fg-subtle)]">{data.latency_ms}ms</span>
                 </div>
             </div>
@@ -248,9 +260,9 @@ const EventPayloadRenderer = ({ event }) => {
     if (type === 'context_select') {
         return (
             <div className="text-[10px]">
-                <span className="text-[var(--vscode-fg-subtle)]">选中 </span>
+                <span className="text-[var(--vscode-fg-subtle)]">{t('panels.timeline.contextSelected')} </span>
                 <span className="font-bold text-[var(--vscode-fg)]">{data.selected}</span>
-                <span className="text-[var(--vscode-fg-subtle)]"> / {data.candidates} 项</span>
+                <span className="text-[var(--vscode-fg-subtle)]"> / {data.candidates} {t('panels.timeline.contextItems')}</span>
                 <div className="h-1 bg-[var(--vscode-list-hover)] rounded-full mt-1 w-24 overflow-hidden">
                     <div className="h-full bg-[var(--vscode-focus-border)]" style={{ width: `${(data.selected / data.candidates) * 100}%` }} />
                 </div>
@@ -281,6 +293,7 @@ const EventPayloadRenderer = ({ event }) => {
 // --- 主组件 ---
 
 const AgentTimeline = ({ events = [], autoScroll = true, maxHeight = '100%' }) => {
+    const { t } = useLocale();
     const containerRef = useRef(null);
     const [expandedTurns, setExpandedTurns] = useState(new Set()); // Store IDs of expanded turns
 
@@ -315,8 +328,8 @@ const AgentTimeline = ({ events = [], autoScroll = true, maxHeight = '100%' }) =
         <div ref={containerRef} className="h-full overflow-y-auto p-3 space-y-4 custom-scrollbar bg-[var(--vscode-bg)]" style={{ maxHeight }}>
             {turns.length === 0 ? (
                 <div className="text-center py-10 text-[var(--vscode-fg-subtle)] text-xs">
-                    <p>暂无行动记录</p>
-                    <p className="opacity-50 mt-1">等待任务开始...</p>
+                    <p>{t('panels.timeline.noActions')}</p>
+                    <p className="opacity-50 mt-1">{t('panels.timeline.waitingStart')}</p>
                 </div>
             ) : (
                 turns.map((item, idx) => {

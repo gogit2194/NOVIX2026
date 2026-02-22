@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn, Button } from '../../ui/core';
+import { useLocale } from '../../../i18n';
 
 /**
  * 编排器控制台面板 - 编排工作流的交互式调试工具
@@ -84,6 +85,7 @@ const ConsoleMessage = ({ msg }) => {
 };
 
 const ContextStep = ({ step, status }) => {
+    const { t } = useLocale();
     // status: 'waiting', 'processing', 'done', 'error'
     const icons = {
         analysis: <AlignLeft size={14} />,
@@ -93,10 +95,10 @@ const ContextStep = ({ step, status }) => {
     };
 
     const labels = {
-        analysis: "指令分析",
-        retrieval: "上下文检索",
-        planning: "任务编排",
-        execution: "Agent 执行"
+        analysis: t('panels.console.stepAnalysis'),
+        retrieval: t('panels.console.stepRetrieval'),
+        planning: t('panels.console.stepPlanning'),
+        execution: t('panels.console.stepExecution'),
     };
 
     return (
@@ -118,6 +120,7 @@ const ContextStep = ({ step, status }) => {
 };
 
 const OrchestratorStatus = ({ status, chapter, isGenerating }) => {
+    const { t } = useLocale();
     // Visible state of the orchestration engine
     return (
         <div className="mb-4 p-3 bg-[var(--vscode-bg)] border border-[var(--vscode-sidebar-border)] rounded-[6px] shadow-none">
@@ -128,12 +131,12 @@ const OrchestratorStatus = ({ status, chapter, isGenerating }) => {
                         isGenerating ? "bg-[var(--vscode-focus-border)]" : "bg-emerald-500"
                     )} />
                     <span className="text-xs font-bold text-[var(--vscode-fg)] tracking-wide">
-                        系统指挥中枢
+                        {t('panels.console.systemHub')}
                     </span>
                 </div>
                 {chapter && (
                     <span className="text-[10px] font-mono text-[var(--vscode-fg-subtle)] bg-[var(--vscode-input-bg)] px-1.5 py-0.5 rounded-[4px] border border-[var(--vscode-sidebar-border)]">
-                        目标：第 {chapter} 章
+                        {t('panels.console.targetChapter').replace('{chapter}', chapter)}
                     </span>
                 )}
             </div>
@@ -148,12 +151,12 @@ const OrchestratorStatus = ({ status, chapter, isGenerating }) => {
             ) : status === 'idle' ? (
                 <div className="text-xs text-[var(--vscode-fg-subtle)] flex items-center gap-2 py-1 px-2">
                     <Radio size={14} />
-                    系统就绪，等待指令...
+                    {t('panels.console.idleMsg')}
                 </div>
             ) : (
                 <div className="text-xs text-[var(--vscode-fg)] flex items-center gap-2 py-1 px-2">
                     <CheckCircle2 size={14} className="text-emerald-500" />
-                    上一步操作已完成。
+                    {t('panels.console.completedMsg')}
                 </div>
             )}
         </div>
@@ -161,22 +164,23 @@ const OrchestratorStatus = ({ status, chapter, isGenerating }) => {
 };
 
 const QuickActions = ({ status, chapter, isGenerating, onStart, onSelectChapter, chapters, onSave, isSaving }) => {
+    const { t } = useLocale();
     if (isGenerating) return null;
 
     return (
         <div className="flex flex-col gap-2 mb-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
             {!chapter ? (
                 <div className="p-4 bg-[var(--vscode-bg)] border border-dashed border-[var(--vscode-sidebar-border)] rounded-[6px] text-center">
-                    <p className="text-sm text-[var(--vscode-fg-subtle)] mb-3">未检测到活跃上下文。</p>
+                    <p className="text-sm text-[var(--vscode-fg-subtle)] mb-3">{t('panels.console.noContext')}</p>
                     <Button onClick={onSelectChapter} className="w-full" variant="outline">
-                        选择或创建章节
+                        {t('panels.console.selectOrCreate')}
                     </Button>
                 </div>
             ) : status === 'editing' ? (
                 <div className="grid grid-cols-2 gap-2">
                     <Button onClick={onSave} disabled={isSaving} variant="default" className="w-full">
                         <Save size={14} className="mr-2" />
-                        {isSaving ? "保存中..." : "保存草稿"}
+                        {isSaving ? t('panels.console.saving') : t('panels.console.saveDraft')}
                     </Button>
                 </div>
             ) : (
@@ -189,8 +193,8 @@ const QuickActions = ({ status, chapter, isGenerating, onStart, onSelectChapter,
                             <RotateCcw size={18} />
                         </div>
                         <div>
-                            <div className="text-xs font-bold text-[var(--vscode-fg)]">快速生成</div>
-                            <div className="text-[10px] text-[var(--vscode-fg-subtle)]">高速响应，低延迟</div>
+                            <div className="text-xs font-bold text-[var(--vscode-fg)]">{t('panels.console.quickGenerate')}</div>
+                            <div className="text-[10px] text-[var(--vscode-fg-subtle)]">{t('panels.console.quickGenerateDesc')}</div>
                         </div>
                     </button>
 
@@ -202,8 +206,8 @@ const QuickActions = ({ status, chapter, isGenerating, onStart, onSelectChapter,
                             <Sparkles size={18} />
                         </div>
                         <div>
-                            <div className="text-xs font-bold text-[var(--vscode-fg)]">深度创作</div>
-                            <div className="text-[10px] text-[var(--vscode-fg-subtle)]">全上下文感知</div>
+                            <div className="text-xs font-bold text-[var(--vscode-fg)]">{t('panels.console.deepCreate')}</div>
+                            <div className="text-[10px] text-[var(--vscode-fg-subtle)]">{t('panels.console.deepCreateDesc')}</div>
                         </div>
                     </button>
                 </div>
@@ -229,6 +233,7 @@ export const OrchestratorConsole = ({
      * 运行态展示与交互输入区域
      * 不改变消息处理逻辑。
      */
+    const { t } = useLocale();
     const [input, setInput] = useState('');
     const scrollRef = useRef(null);
 
@@ -299,8 +304,8 @@ export const OrchestratorConsole = ({
                                 }
                             }}
                             placeholder={
-                                status === 'waiting_feedback' ? "请输入反馈以优化结果..." :
-                                    "输入指令或反馈..."
+                                status === 'waiting_feedback' ? t('panels.console.placeholderFeedback') :
+                                    t('panels.console.placeholderInput')
                             }
                             className="w-full min-h-[44px] max-h-[120px] py-3 pl-4 pr-10 bg-[var(--vscode-input-bg)] border border-[var(--vscode-input-border)] rounded-[6px] text-sm focus:ring-1 focus:ring-[var(--vscode-focus-border)] focus:border-[var(--vscode-focus-border)] resize-none outline-none transition-colors placeholder:text-[var(--vscode-fg-subtle)] font-sans"
                             disabled={isGenerating}
@@ -319,19 +324,19 @@ export const OrchestratorConsole = ({
                 </div>
                 <div className="flex justify-between items-center mt-2 px-1">
                     <span className="text-[10px] text-[var(--vscode-fg-subtle)] font-mono">
-                        文枢上下文引擎 v1.0
+                        {t('panels.console.engineVersion')}
                     </span>
                     <span className="text-[10px] text-[var(--vscode-fg-subtle)]">
                         {status === 'idle'
-                            ? '就绪'
+                            ? t('panels.console.statusIdle')
                             : status === 'starting'
-                                ? '启动中'
+                                ? t('panels.console.statusStarting')
                                 : status === 'editing'
-                                    ? '编辑中'
+                                    ? t('panels.console.statusEditing')
                                     : status === 'waiting_feedback'
-                                        ? '等待反馈'
+                                        ? t('panels.console.statusWaitingFeedback')
                                         : status === 'completed'
-                                            ? '已完成'
+                                            ? t('panels.console.statusCompleted')
                                             : status}
                     </span>
                 </div>

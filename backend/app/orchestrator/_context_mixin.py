@@ -256,6 +256,7 @@ class ContextMixin:
                     chapter=chapter,
                     scene_brief=scene_brief,
                     chapter_goal=chapter_goal,
+                    language=getattr(self, "language", "zh"),
                     user_answers=user_answers,
                     force_minimum_questions=False,
                 )

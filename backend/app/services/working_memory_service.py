@@ -20,6 +20,7 @@ from app.services.evidence_service import evidence_service
 from app.services.chapter_binding_service import chapter_binding_service
 from app.schemas.draft import SceneBrief
 from app.config import config
+from app.utils.language import normalize_language
 
 
 class WorkingMemoryService:
@@ -53,6 +54,7 @@ class WorkingMemoryService:
         self,
         scene_brief: Optional[SceneBrief],
         chapter_goal: str,
+        language: str = "zh",
         seed_characters: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """Build gap items from scene brief and chapter goal.
@@ -65,6 +67,7 @@ class WorkingMemoryService:
             List of gap items with queries.
         """
         gaps: List[Dict[str, Any]] = []
+        lang = normalize_language(language, default="zh")
 
         goal_text = str(chapter_goal or "").strip()
         brief_goal = str(getattr(scene_brief, "goal", "") or "").strip()
@@ -73,7 +76,11 @@ class WorkingMemoryService:
             gaps.append(
                 {
                     "kind": "plot_point",
-                    "text": f"围绕章节目标的关键推进点是什么（避免偏离目标）",
+                    "text": (
+                        "围绕章节目标的关键推进点是什么（避免偏离目标）"
+                        if lang == "zh"
+                        else "What is the key progression point aligned with the chapter goal (avoid drifting off-goal)?"
+                    ),
                     "queries": [goal_text],
                     "ask_user": True,
                 }
@@ -104,8 +111,8 @@ class WorkingMemoryService:
             gaps.append(
                 {
                     "kind": "detail_gap",
-                    "text": "本章涉及的主要角色有哪些",
-                    "queries": ["角色 人物 参与"],
+                    "text": "本章涉及的主要角色有哪些" if lang == "zh" else "Who are the main characters involved in this chapter?",
+                    "queries": ["角色 人物 参与"] if lang == "zh" else ["main characters", "participants", "cast"],
                     "ask_user": True,
                 }
             )
@@ -114,8 +121,8 @@ class WorkingMemoryService:
                 gaps.append(
                     {
                         "kind": "character_change",
-                        "text": f"{name} 在本章的动机/状态是否有变化",
-                        "queries": [f"{name} 动机", f"{name} 状态"],
+                        "text": f"{name} 在本章的动机/状态是否有变化" if lang == "zh" else f"Does {name}'s motivation/state change in this chapter?",
+                        "queries": [f"{name} 动机", f"{name} 状态"] if lang == "zh" else [f"{name} motivation", f"{name} current state"],
                         "ask_user": True,
                         "entity_name": name,
                     }
@@ -126,8 +133,8 @@ class WorkingMemoryService:
             gaps.append(
                 {
                     "kind": "detail_gap",
-                    "text": "本章时间/地点的具体边界是什么",
-                    "queries": ["时间 地点 场景"],
+                    "text": "本章时间/地点的具体边界是什么" if lang == "zh" else "What are the concrete boundaries of time and place in this chapter?",
+                    "queries": ["时间 地点 场景"] if lang == "zh" else ["time", "location", "setting"],
                     "ask_user": True,
                 }
             )
@@ -137,8 +144,8 @@ class WorkingMemoryService:
             gaps.append(
                 {
                     "kind": "plot_point",
-                    "text": "本章需遵守的世界规则/禁忌/代价有哪些",
-                    "queries": ["规则 禁忌 代价 限制"],
+                    "text": "本章需遵守的世界规则/禁忌/代价有哪些" if lang == "zh" else "Which world rules/taboos/costs must be respected in this chapter?",
+                    "queries": ["规则 禁忌 代价 限制"] if lang == "zh" else ["rules", "taboos", "cost", "constraints"],
                     "ask_user": True,
                 }
             )
@@ -148,8 +155,8 @@ class WorkingMemoryService:
             gaps.append(
                 {
                     "kind": "detail_gap",
-                    "text": "与本章目标直接相关的已确立事实有哪些",
-                    "queries": ["关键事实 已确立事实"],
+                    "text": "与本章目标直接相关的已确立事实有哪些" if lang == "zh" else "Which established facts directly matter for this chapter goal?",
+                    "queries": ["关键事实 已确立事实"] if lang == "zh" else ["key facts", "established facts"],
                     "ask_user": True,
                 }
             )
@@ -178,6 +185,7 @@ class WorkingMemoryService:
         chapter: str,
         scene_brief: Optional[SceneBrief],
         chapter_goal: str,
+        language: str = "zh",
         user_answers: Optional[List[Dict[str, Any]]] = None,
         extra_queries: Optional[List[str]] = None,
         force_minimum_questions: Optional[bool] = None,
@@ -200,6 +208,7 @@ class WorkingMemoryService:
             Dict containing working_memory, gaps, unresolved_gaps, evidence_pack, retrieval_requests, questions.
         """
         user_answers_list = user_answers or []
+        lang = normalize_language(language, default="zh")
         if semantic_rerank is None:
             semantic_rerank = bool((config.get("retrieval") or {}).get("semantic_rerank", True))
         rerank_top_k = int((config.get("retrieval") or {}).get("rerank_top_k", self.SEMANTIC_RERANK_TOP_K))
@@ -244,6 +253,7 @@ class WorkingMemoryService:
         gaps = self.build_gap_items(
             scene_brief,
             chapter_goal,
+            language=lang,
             seed_characters=recent_character_candidates,
         )
         extra_list = [str(q).strip() for q in (extra_queries or []) if str(q).strip()]
@@ -253,7 +263,7 @@ class WorkingMemoryService:
             gaps.append(
                 {
                     "kind": "extra_research",
-                    "text": "研究补充查询",
+                    "text": "研究补充查询" if lang == "zh" else "Supplementary research queries",
                     "queries": extra_list,
                     "ask_user": False,
                 }
@@ -428,7 +438,7 @@ class WorkingMemoryService:
             },
         }
 
-        questions = self._build_questions(unresolved_gaps, chapter, unknown_gap_texts=unknown_gap_texts)
+        questions = self._build_questions(unresolved_gaps, chapter, language=lang, unknown_gap_texts=unknown_gap_texts)
 
         working_memory = self._compile_working_memory(
             scene_brief=scene_brief,
@@ -505,9 +515,11 @@ class WorkingMemoryService:
         self,
         gaps: List[Dict[str, Any]],
         chapter: str,
+        language: str = "zh",
         unknown_gap_texts: Optional[set] = None,
     ) -> List[Dict[str, str]]:
         questions = []
+        lang = normalize_language(language, default="zh")
         for gap in gaps[:3]:
             kind = gap.get("kind") or "detail_gap"
             text = gap.get("text") or ""
@@ -515,13 +527,29 @@ class WorkingMemoryService:
                 continue
             if unknown_gap_texts and text in unknown_gap_texts:
                 continue
-            if kind == "plot_point":
-                question = f"为达成本章目标，{text}？"
-            elif kind == "character_change":
-                question = f"角色方面：{text}？"
+            if lang == "en":
+                q = str(text).strip()
+                starts_like_question = bool(re.match(r"^(what|who|which|where|when|why|how|does|do|is|are|can|should)\b", q, re.I))
+                if starts_like_question or "?" in q:
+                    question = q
+                    if not question.endswith("?"):
+                        question += "?"
+                else:
+                    if kind == "plot_point":
+                        question = f"To achieve this chapter goal, {q.rstrip('.')}?"
+                    elif kind == "character_change":
+                        question = f"Character: {q.rstrip('.')}?"
+                    else:
+                        question = f"Details: {q.rstrip('.')}?"
+                reason = f"Insufficient evidence; gap: {q}"
             else:
-                question = f"细节方面：{text}？"
-            reason = f"璇佹嵁涓嶈冻锛岀己鍙ｏ細{text}"
+                if kind == "plot_point":
+                    question = f"为达成本章目标，{text}？"
+                elif kind == "character_change":
+                    question = f"角色方面：{text}？"
+                else:
+                    question = f"细节方面：{text}？"
+                reason = f"证据不足，缺口：{text}"
             questions.append(
                 {
                     "type": kind,
