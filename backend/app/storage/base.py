@@ -25,11 +25,66 @@ import os
 import yaml
 from pathlib import Path
 from typing import Any, Dict, Optional
+from enum import Enum
 import aiofiles
 from app.storage.file_lock import get_file_lock
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+class _SafeCompatLoader(yaml.SafeLoader):
+    """
+    安全 YAML Loader（带兼容层）。
+
+    历史原因：我们曾用 `yaml.dump` 写入数据文件，PyYAML 会把 Enum 序列化为
+    `!!python/object/apply:...` 标签；而 `yaml.safe_load` 会拒绝该标签，导致 EXE
+    读取旧 data 目录时报错。
+
+    这里仅对白名单里的 Enum 标签做“安全降级”（转为普通字符串），不启用任意
+    Python 对象构造，以避免 YAML 反序列化带来的 RCE 风险。
+    """
+
+
+_PY_APPLY_TAG_PREFIX = "tag:yaml.org,2002:python/object/apply:"
+_ALLOWED_PY_APPLY_SUFFIX_PREFIXES = ("app.schemas.enums.",)
+
+
+def _construct_python_apply(loader: yaml.SafeLoader, suffix: str, node: yaml.Node) -> Any:
+    if not suffix.startswith(_ALLOWED_PY_APPLY_SUFFIX_PREFIXES):
+        raise yaml.constructor.ConstructorError(
+            None,
+            None,
+            f"Refusing unsafe YAML tag: {_PY_APPLY_TAG_PREFIX}{suffix}",
+            getattr(node, "start_mark", None),
+        )
+
+    # Legacy Enum encoding is usually a sequence like: ["zh"] / ["en"] (or a scalar).
+    if isinstance(node, yaml.SequenceNode):
+        seq = loader.construct_sequence(node)
+        val = seq[0] if seq else ""
+    elif isinstance(node, yaml.ScalarNode):
+        val = loader.construct_scalar(node)
+    else:
+        val = loader.construct_object(node)
+
+    if isinstance(val, Enum):
+        return str(val.value)
+    return str(val)
+
+
+_SafeCompatLoader.add_multi_constructor(_PY_APPLY_TAG_PREFIX, _construct_python_apply)
+
+
+class _SafeDumper(yaml.SafeDumper):
+    """安全 YAML Dumper：把 Enum 序列化为普通字符串值，避免写入 python/object/apply 标签。"""
+
+
+def _represent_enum(dumper: yaml.SafeDumper, data: Enum) -> yaml.Node:
+    return dumper.represent_scalar("tag:yaml.org,2002:str", str(getattr(data, "value", str(data))))
+
+
+_SafeDumper.add_multi_representer(Enum, _represent_enum)
 
 
 class BaseStorage:
@@ -202,7 +257,7 @@ class BaseStorage:
 
         async with aiofiles.open(file_path, 'r', encoding=self.encoding) as f:
             content = await f.read()
-            return yaml.safe_load(content)
+            return yaml.load(content, Loader=_SafeCompatLoader)
 
     async def write_yaml(self, file_path: Path, data: Dict[str, Any]) -> None:
         """
@@ -216,7 +271,7 @@ class BaseStorage:
         """
         self.ensure_dir(file_path.parent)
 
-        yaml_content = yaml.dump(data, allow_unicode=True, sort_keys=False)
+        yaml_content = yaml.dump(data, Dumper=_SafeDumper, allow_unicode=True, sort_keys=False)
         await self._atomic_write(file_path, yaml_content)
 
     async def read_jsonl(self, file_path: Path) -> list:
