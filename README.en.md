@@ -44,11 +44,18 @@ A complete writing session executes the following pipeline:
 
 ```mermaid
 flowchart LR
-  A[User initiates a writing request] --> B[Stage 1: Scene preparation (Archivist)]
-  B --> C[Stage 2: Context construction (Context Engine)]
-  C --> D[Stage 3: Draft generation (Writer)]
-  D --> E[Stage 4: Revision loop (Editor / Writer)]
-  E --> F[Stage 5: Closing analysis (Archivist)]
+  A["User initiates a writing request"]
+  B["Stage 1: Scene preparation (Archivist)"]
+  C["Stage 2: Context construction (Context Engine)"]
+  D["Stage 3: Draft generation (Writer)"]
+  E["Stage 4: Revision loop (Editor / Writer)"]
+  F["Stage 5: Closing analysis (Archivist)"]
+
+  A --> B
+  B --> C
+  C --> D
+  D --> E
+  E --> F
 ```
 
 | Stage | Goal | Key outputs |
@@ -313,4 +320,3 @@ For commercial licensing, contact: [1467673018@qq.com](mailto:1467673018@qq.com)
   <p>If this project helps you, giving it a Star is a huge encouragement.</p>
   <p><em>Let the story unfold.</em></p>
 </div>
-
